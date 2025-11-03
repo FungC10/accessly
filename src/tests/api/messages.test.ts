@@ -150,14 +150,15 @@ describe('POST /api/chat/messages', () => {
     expect(data.code).toBe('UNAUTHORIZED')
   })
 
-  it('should return error when rate limited', async () => {
+  it('should return error when rate limited (429)', async () => {
     vi.mocked(auth).mockResolvedValue({
       user: { id: 'user-1', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
-    const rateLimitError = new Error('Rate limit exceeded')
-    ;(rateLimitError as any).code = 'RATE_LIMITED'
+    const { RateLimitedError } = await import('@/lib/rateLimit')
+    const rateLimitError = new RateLimitedError('Rate limit exceeded')
+    
     vi.mocked(checkRate).mockImplementation(() => {
       throw rateLimitError
     })
@@ -177,9 +178,10 @@ describe('POST /api/chat/messages', () => {
     expect(response.status).toBe(200)
     expect(data.ok).toBe(false)
     expect(data.code).toBe('RATE_LIMITED')
+    expect(data.message).toContain('Rate limit exceeded')
   })
 
-  it('should return error for invalid input', async () => {
+  it('should return 400 error for invalid payload', async () => {
     vi.mocked(auth).mockResolvedValue({
       user: { id: 'user-1', role: 'USER' },
       expires: new Date().toISOString(),
@@ -189,7 +191,8 @@ describe('POST /api/chat/messages', () => {
 
     const request = new Request('http://localhost/api/chat/messages', {
       method: 'POST',
-      body: JSON.stringify({ roomId: 'invalid', content: '' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: 'invalid-cuid', content: '' }),
     })
 
     const response = await POST(request)
@@ -198,6 +201,7 @@ describe('POST /api/chat/messages', () => {
     expect(response.status).toBe(200)
     expect(data.ok).toBe(false)
     expect(data.code).toBe('VALIDATION_ERROR')
+    expect(data.details).toBeDefined()
   })
 
   it('should return error if user is not a room member', async () => {
