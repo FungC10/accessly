@@ -1,6 +1,41 @@
 'use client'
 
-// Client-side gate (soft); server gates are primary
-export function RoleGuard({ children }: { children: React.ReactNode }) {
+import { useSession } from 'next-auth/react'
+import { Role } from '@prisma/client'
+import { hasRole } from '@/lib/rbac'
+
+type RoleGuardProps = {
+  children: React.ReactNode
+  role: Role
+  fallback?: React.ReactNode
+}
+
+/**
+ * Client-side role guard (soft check for UI only)
+ * WARNING: Never trust client-side checks for security!
+ * Always enforce role checks on the server side.
+ *
+ * This component only hides/shows UI elements based on role.
+ * Server-side guards must be the primary security mechanism.
+ */
+export function RoleGuard({
+  children,
+  role,
+  fallback = null,
+}: RoleGuardProps) {
+  const { data: session, status } = useSession()
+
+  // Show nothing while loading
+  if (status === 'loading') {
+    return null
+  }
+
+  // Check if user has the required role
+  const canAccess = hasRole(session, role)
+
+  if (!canAccess) {
+    return <>{fallback}</>
+  }
+
   return <>{children}</>
 }
