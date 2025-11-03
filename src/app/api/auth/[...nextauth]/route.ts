@@ -1,8 +1,5 @@
-// NextAuth route (Node runtime)
-export async function GET() {
-  return new Response('NextAuth route', { status: 200 })
-}
+import { handlers } from '@/lib/auth'
 
-export async function POST() {
-  return new Response('NextAuth route', { status: 200 })
-}
+export const { GET, POST } = handlers
+
+export const runtime = 'nodejs'
