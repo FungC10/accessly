@@ -20,7 +20,10 @@
     "next": "^15.0.0",
     "next-auth": "^5.0.0-beta.25",
     "@auth/prisma-adapter": "^2.5.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2",
+    "date-fns": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
