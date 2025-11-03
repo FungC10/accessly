@@ -12,7 +12,7 @@
     "test:ui": "vitest --ui",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx src/data/seed.ts"
+    "db:seed": "tsx src/data/seed.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
