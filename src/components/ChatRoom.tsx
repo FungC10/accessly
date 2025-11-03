@@ -155,7 +155,12 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div
+        className="flex-1 overflow-y-auto p-6 space-y-4"
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
+      >
         {messages.map((message) => (
           <MessageItem key={message.id} message={message} currentUserId={session.user!.id} />
         ))}

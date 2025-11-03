@@ -3,11 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --background: #0f172a;
+  --background: #0f172a; /* slate-950 */
   --foreground: #ffffff;
+}
+
+* {
+  @apply border-slate-800;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+}
+
+/* Focus outlines - always visible for accessibility */
+*:focus-visible {
+  @apply outline-none ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom scrollbar for tech gray theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-600;
 }
