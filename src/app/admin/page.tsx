@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Role } from '@prisma/client'
+import { CreateRoomForm } from '@/components/CreateRoomForm'
 // Role is an enum from Prisma - should be available after prisma generate
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,23 @@ export default async function AdminPage() {
     },
   })
 
+  const rooms = await prisma.room.findMany({
+    take: 20,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      isPrivate: true,
+      createdAt: true,
+      _count: {
+        select: {
+          members: true,
+          messages: true,
+        },
+      },
+    },
+  })
+
   const totalUsers = await prisma.user.count()
   const totalMessages = await prisma.message.count()
   const totalRooms = await prisma.room.count()
@@ -79,6 +97,53 @@ export default async function AdminPage() {
           <div className="bg-purple-500/10 backdrop-blur border border-purple-500/30 rounded-lg p-6">
             <h3 className="text-lg font-semibold mb-2 text-purple-300">Total Rooms</h3>
             <p className="text-3xl font-bold text-purple-400">{totalRooms}</p>
+          </div>
+        </div>
+
+        {/* Create Room Section */}
+        <div className="bg-purple-500/10 backdrop-blur border border-purple-500/30 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-purple-300">Create New Room</h2>
+          <CreateRoomForm />
+        </div>
+
+        {/* Rooms List */}
+        <div className="bg-white/10 backdrop-blur border border-slate-700 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">All Rooms</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-700">
+                  <th className="text-left py-2 px-4 text-slate-400">Name</th>
+                  <th className="text-left py-2 px-4 text-slate-400">Type</th>
+                  <th className="text-left py-2 px-4 text-slate-400">Members</th>
+                  <th className="text-left py-2 px-4 text-slate-400">Messages</th>
+                  <th className="text-left py-2 px-4 text-slate-400">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rooms.map((room) => (
+                  <tr key={room.id} className="border-b border-slate-800/50">
+                    <td className="py-2 px-4">{room.name}</td>
+                    <td className="py-2 px-4">
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded ${
+                          room.isPrivate
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                            : 'bg-green-500/20 text-green-300 border border-green-500/30'
+                        }`}
+                      >
+                        {room.isPrivate ? 'Private' : 'Public'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-4">{room._count.members}</td>
+                    <td className="py-2 px-4">{room._count.messages}</td>
+                    <td className="py-2 px-4 text-sm text-slate-400">
+                      {new Date(room.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

@@ -26,6 +26,24 @@ async function main() {
   console.log('✅ Created admin user:', admin.email)
   console.log('   Password: admin123')
 
+  // Create regular user
+  const userPassword = await bcrypt.hash('user123', 10)
+  const user = await prisma.user.upsert({
+    where: { email: 'user@accessly.com' },
+    update: {
+      password: userPassword, // Update password if user exists
+    },
+    create: {
+      email: 'user@accessly.com',
+      name: 'Regular User',
+      emailVerified: new Date(),
+      role: Role.USER,
+      password: userPassword,
+    },
+  })
+  console.log('✅ Created regular user:', user.email)
+  console.log('   Password: user123')
+
   // Create public rooms: #general and #random
   const generalRoom = await prisma.room.upsert({
     where: { name: '#general' },
@@ -104,6 +122,38 @@ async function main() {
     },
   })
   console.log('✅ Added admin as owner of all rooms')
+
+  // Add regular user as member of public rooms
+  await prisma.roomMember.upsert({
+    where: {
+      userId_roomId: {
+        userId: user.id,
+        roomId: generalRoom.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      roomId: generalRoom.id,
+      role: RoomRole.MEMBER,
+    },
+  })
+
+  await prisma.roomMember.upsert({
+    where: {
+      userId_roomId: {
+        userId: user.id,
+        roomId: randomRoom.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      roomId: randomRoom.id,
+      role: RoomRole.MEMBER,
+    },
+  })
+  console.log('✅ Added regular user as member of public rooms')
 
   console.log('✨ Seeding completed!')
 }

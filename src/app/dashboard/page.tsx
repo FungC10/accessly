@@ -22,9 +22,13 @@ export default async function DashboardPage() {
   const messageCount = await prisma.message.count({
     where: { userId: session.user.id },
   })
-  const roomMemberships = await prisma.roomMember.count({
+  // Count distinct rooms the user is a member of
+  const roomMemberships = await prisma.roomMember.findMany({
     where: { userId: session.user.id },
+    select: { roomId: true },
+    distinct: ['roomId'],
   })
+  const roomCount = roomMemberships.length
 
   // Admin-only stats
   let adminStats = null
@@ -76,7 +80,7 @@ export default async function DashboardPage() {
 
           <div className="bg-white/10 backdrop-blur border border-slate-700 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-2">Rooms Joined</h2>
-            <p className="text-3xl font-bold text-cyan-400">{roomMemberships}</p>
+            <p className="text-3xl font-bold text-cyan-400">{roomCount}</p>
           </div>
         </div>
 
