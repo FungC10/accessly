@@ -47,7 +47,14 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
     socket.on('message:new', (message: Message) => {
       // Ensure message has user object with id
       if (message.user?.id) {
-        setMessages((prev) => [...prev, message])
+        setMessages((prev) => {
+          // Deduplicate: check if message already exists (avoid duplicates from API + Socket)
+          const exists = prev.some((m) => m.id === message.id)
+          if (exists) {
+            return prev // Message already in list, don't add again
+          }
+          return [...prev, message]
+        })
       } else {
         console.warn('Received message without user.id:', message)
       }
@@ -75,7 +82,18 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       }
       const data = await response.json()
       // API returns { ok: true, data: { messages: [...] } }
-      setMessages(data.data?.messages || data.messages || [])
+      const rawMessages = data.data?.messages || data.messages || []
+      
+      // Filter out messages without valid user.id
+      const validMessages = rawMessages.filter((msg: Message) => {
+        if (!msg.user?.id) {
+          console.warn('Message missing user.id, filtering out:', msg)
+          return false
+        }
+        return true
+      })
+      
+      setMessages(validMessages)
     } catch (err) {
       console.error('Error fetching messages:', err)
       setError('Failed to load messages')
@@ -117,18 +135,45 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to send message')
-      }
-
       const data = await response.json()
+
+      // Check if API returned an error response
+      // API returns { ok: false, message: '...' } for errors
+      if (!response.ok || !data.ok) {
+        const errorMessage = data.message || data.error || 'Failed to send message'
+        throw new Error(errorMessage)
+      }
 
       // Remove optimistic message and add real one
       // API returns { ok: true, data: { ...message } }
-      const savedMessage = data.data || data.message
+      const savedMessage = data.data
+      
+      // Validate saved message structure
+      if (!savedMessage || typeof savedMessage !== 'object') {
+        console.error('Invalid saved message format:', savedMessage)
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+        throw new Error('Invalid message format from server')
+      }
+      
+      // Ensure saved message has user object with id
+      if (!savedMessage.user || !savedMessage.user.id) {
+        console.error('Saved message missing user.id:', savedMessage)
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+        throw new Error('Invalid message format from server')
+      }
+      
       setMessages((prev) => {
+        // Remove optimistic message
         const filtered = prev.filter((m) => m.id !== optimisticMessage.id)
+        
+        // Check if saved message already exists (from Socket.io event)
+        const exists = filtered.some((m) => m.id === savedMessage.id)
+        if (exists) {
+          // Message already added via Socket.io, just return filtered list
+          return filtered
+        }
+        
+        // Add saved message if it doesn't exist
         return [...filtered, savedMessage]
       })
     } catch (err: any) {
@@ -169,13 +214,15 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         aria-live="polite"
         aria-label="Chat messages"
       >
-        {messages.map((message) => (
-          <MessageItem 
-            key={message.id} 
-            message={message} 
-            currentUserId={session.user!.id} 
-          />
-        ))}
+        {messages
+          .filter((message) => message.user?.id) // Filter out messages without user.id
+          .map((message) => (
+            <MessageItem 
+              key={message.id} 
+              message={message} 
+              currentUserId={session.user!.id} 
+            />
+          ))}
         <div ref={messagesEndRef} />
       </div>
 

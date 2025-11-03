@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { Role } from '@prisma/client'
 // Role is an enum from Prisma - should be available after prisma generate
 

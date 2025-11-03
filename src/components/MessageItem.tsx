@@ -13,6 +13,12 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, currentUserId }: MessageItemProps) {
+  // Safety check - should not happen if filtered properly, but defensive
+  if (!message.user?.id) {
+    console.warn('MessageItem received message without user.id:', message)
+    return null
+  }
+  
   const isOwn = message.user.id === currentUserId
   const createdAt = new Date(message.createdAt)
   const timeAgo = formatTimeAgo(createdAt)

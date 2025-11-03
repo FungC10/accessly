@@ -18,12 +18,33 @@ export default function ChatPage() {
   }, [status, router])
 
   useEffect(() => {
-    // For demo, use the first available room from seed data (#general)
-    // In production, you'd fetch available rooms from API
-    // Using a hardcoded room ID for now - should match seed data
-    setRoomId('general-room-id') // This would come from API
-    setRoomName('#general')
-  }, [])
+    // Fetch available rooms from API
+    const fetchRooms = async () => {
+      try {
+        const response = await fetch('/api/chat/rooms')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.ok && data.data?.rooms && data.data.rooms.length > 0) {
+            // Use the first room (typically #general)
+            const firstRoom = data.data.rooms[0]
+            setRoomId(firstRoom.id)
+            setRoomName(firstRoom.name)
+          } else {
+            console.warn('No rooms available for user')
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Failed to fetch rooms:', errorData.message || 'Unknown error')
+        }
+      } catch (err) {
+        console.error('Error fetching rooms:', err)
+      }
+    }
+    
+    if (session?.user) {
+      fetchRooms()
+    }
+  }, [session])
 
   if (status === 'loading') {
     return (
