@@ -1,14 +1,67 @@
 import NextAuth from 'next-auth'
 import GitHub from 'next-auth/providers/github'
 import Email from 'next-auth/providers/email'
+import Credentials from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from './prisma'
 import { Role } from '@prisma/client'
 import { env } from './env'
+import bcrypt from 'bcryptjs'
 
 const providers: Array<
-  ReturnType<typeof GitHub> | ReturnType<typeof Email>
+  ReturnType<typeof GitHub> | ReturnType<typeof Email> | ReturnType<typeof Credentials>
 > = []
+
+// Add Credentials provider (for email/password login)
+providers.push(
+  Credentials({
+    name: 'Credentials',
+    credentials: {
+      email: { label: 'Email', type: 'email' },
+      password: { label: 'Password', type: 'password' },
+    },
+    async authorize(credentials) {
+      try {
+        if (!credentials?.email || !credentials?.password) {
+          console.log('❌ Missing credentials')
+          return null
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email as string },
+        })
+
+        if (!user) {
+          console.log('❌ User not found:', credentials.email)
+          return null
+        }
+
+        if (!user.password) {
+          console.log('❌ User has no password set')
+          return null
+        }
+
+        const isValid = await bcrypt.compare(credentials.password as string, user.password)
+        if (!isValid) {
+          console.log('❌ Invalid password for user:', credentials.email)
+          return null
+        }
+
+        console.log('✅ Login successful for:', user.email)
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role,
+        }
+      } catch (error) {
+        console.error('❌ Auth error:', error)
+        return null
+      }
+    },
+  })
+)
 
 // Add GitHub provider if env vars are present
 if (env.GITHUB_ID && env.GITHUB_SECRET) {
@@ -37,10 +90,15 @@ if (providers.length === 0) {
   )
 }
 
+// Check if we have OAuth providers (need adapter)
+const hasOAuthProviders = providers.some(p => p.id !== 'credentials')
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // Only use adapter for OAuth providers (GitHub, Email)
+  // Credentials provider uses JWT strategy and doesn't need adapter
+  adapter: hasOAuthProviders ? (PrismaAdapter(prisma) as any) : undefined,
   session: {
-    strategy: 'database',
+    strategy: 'jwt', // Use JWT for credentials provider (required)
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   providers,
@@ -56,12 +114,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user && user) {
-        session.user.id = user.id
-        session.user.role = (user as any).role as Role
+    async session({ session, token, user }) {
+      if (session.user) {
+        // For JWT strategy (credentials), use token
+        if (token) {
+          session.user.id = token.id as string
+          session.user.role = (token.role as Role) || Role.USER
+        }
+        // For database strategy (OAuth), use user
+        if (user) {
+          session.user.id = user.id
+          session.user.role = (user as any).role as Role
+        }
       }
       return session
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+        token.role = (user as any).role || Role.USER
+      }
+      return token
     },
   },
   pages: {

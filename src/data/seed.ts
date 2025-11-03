@@ -1,22 +1,30 @@
 import { PrismaClient, Role, RoomRole } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Seeding database...')
 
+  // Hash password for admin user
+  const hashedPassword = await bcrypt.hash('admin123', 10)
+
   // Create admin user
   const admin = await prisma.user.upsert({
     where: { email: 'admin@accessly.com' },
-    update: {},
+    update: {
+      password: hashedPassword, // Update password if user exists
+    },
     create: {
       email: 'admin@accessly.com',
       name: 'Admin User',
       emailVerified: new Date(),
       role: Role.ADMIN,
+      password: hashedPassword,
     },
   })
   console.log('✅ Created admin user:', admin.email)
+  console.log('   Password: admin123')
 
   // Create public rooms: #general and #random
   const generalRoom = await prisma.room.upsert({

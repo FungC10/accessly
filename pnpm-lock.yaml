@@ -17,6 +17,9 @@ dependencies:
   '@socket.io/redis-adapter':
     specifier: ^8.3.0
     version: 8.3.0(socket.io-adapter@2.5.5)
+  bcryptjs:
+    specifier: ^3.0.3
+    version: 3.0.3
   date-fns:
     specifier: ^3.0.0
     version: 3.6.0
@@ -2305,6 +2308,11 @@ packages:
   /baseline-browser-mapping@2.8.23:
     resolution: {integrity: sha512-616V5YX4bepJFzNyOfce5Fa8fDJMfoxzOIzDCZwaGL8MKVpFrXqfNUoIpRn9YMI5pXf/VKgzjB4htFMsFKKdiQ==}
     hasBin: true
+
+  /bcryptjs@3.0.3:
+    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
+    hasBin: true
+    dev: false
 
   /bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}

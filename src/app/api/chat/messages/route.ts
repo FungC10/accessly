@@ -202,13 +202,18 @@ export async function POST(request: Request) {
     // Emit Socket.io event to room
     const io = getIO()
     if (io) {
+      // Ensure user object is included in socket event
       io.to(validated.data.roomId).emit('message:new', {
         id: message.id,
         roomId: message.roomId,
         userId: message.userId,
         content: message.content,
         createdAt: message.createdAt.toISOString(),
-        user: message.user,
+        user: {
+          id: message.user.id,
+          name: message.user.name,
+          image: message.user.image,
+        },
       })
     }
 

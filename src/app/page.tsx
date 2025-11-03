@@ -1,6 +1,19 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-export default function Home() {
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+export default async function Home() {
+  const { auth } = await import('@/lib/auth')
+  const session = await auth()
+
+  // If logged in, redirect to dashboard
+  if (session?.user) {
+    redirect('/dashboard')
+  }
+
+  // If not logged in, show landing page
   return (
     <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
       <div className="text-center space-y-6">

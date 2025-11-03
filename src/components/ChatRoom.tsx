@@ -45,7 +45,12 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
 
     // Listen for new messages
     socket.on('message:new', (message: Message) => {
-      setMessages((prev) => [...prev, message])
+      // Ensure message has user object with id
+      if (message.user?.id) {
+        setMessages((prev) => [...prev, message])
+      } else {
+        console.warn('Received message without user.id:', message)
+      }
     })
 
     // Load initial messages
@@ -69,7 +74,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         throw new Error('Failed to load messages')
       }
       const data = await response.json()
-      setMessages(data.messages || [])
+      // API returns { ok: true, data: { messages: [...] } }
+      setMessages(data.data?.messages || data.messages || [])
     } catch (err) {
       console.error('Error fetching messages:', err)
       setError('Failed to load messages')
@@ -119,9 +125,11 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       const data = await response.json()
 
       // Remove optimistic message and add real one
+      // API returns { ok: true, data: { ...message } }
+      const savedMessage = data.data || data.message
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== optimisticMessage.id)
-        return [...filtered, data.message]
+        return [...filtered, savedMessage]
       })
     } catch (err: any) {
       // Remove optimistic message on error
@@ -162,7 +170,11 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         aria-label="Chat messages"
       >
         {messages.map((message) => (
-          <MessageItem key={message.id} message={message} currentUserId={session.user!.id} />
+          <MessageItem 
+            key={message.id} 
+            message={message} 
+            currentUserId={session.user!.id} 
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

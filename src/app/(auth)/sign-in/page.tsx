@@ -98,21 +98,77 @@ export default function SignInPage({ searchParams }: SignInPageProps) {
             </button>
           )}
 
+          {/* Credentials (Email/Password) login */}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              const email = formData.get('email') as string
+              const password = formData.get('password') as string
+              
+              setError(null) // Clear previous errors
+              
+              try {
+                const result = await signIn('credentials', {
+                  email,
+                  password,
+                  redirect: false,
+                  callbackUrl,
+                })
+
+                if (result?.error) {
+                  console.error('Sign in error:', result.error)
+                  setError('Invalid email or password')
+                } else if (result?.ok) {
+                  window.location.href = callbackUrl
+                } else {
+                  setError('Sign in failed. Please try again.')
+                }
+              } catch (err) {
+                console.error('Sign in exception:', err)
+                setError('An error occurred. Please try again.')
+              }
+            }}
+          >
+            <div className="space-y-3">
+              <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                required
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+              <input
+                type="password"
+                name="password"
+                placeholder="Enter your password"
+                required
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+              <button
+                type="submit"
+                className="w-full px-4 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
+              >
+                Sign In
+              </button>
+            </div>
+          </form>
+
           {hasEmail && (
             <form onSubmit={handleEmailSignIn}>
               <div className="space-y-3">
                 <input
                   type="email"
                   name="email"
-                  placeholder="Enter your email"
+                  placeholder="Enter your email (magic link)"
                   required
                   className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                 />
                 <button
                   type="submit"
-                  className="w-full px-4 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
+                  className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
                 >
-                  Sign in with Email
+                  Sign in with Email (Magic Link)
                 </button>
               </div>
             </form>
