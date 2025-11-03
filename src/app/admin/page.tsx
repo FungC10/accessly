@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { Role } from '@prisma/client'
+// Role is an enum from Prisma - should be available after prisma generate
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
