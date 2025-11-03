@@ -36,9 +36,19 @@ function findAuthCoreVersions() {
   return versions
 }
 
-// Check via require.resolve first
+// Check via import.meta.resolve (ESM) or createRequire fallback
+let resolvedPath
 try {
-  const resolvedPath = require.resolve('@auth/core/package.json', { paths: [projectRoot] })
+  // Try ESM resolve first
+  if (typeof import.meta.resolve === 'function') {
+    resolvedPath = import.meta.resolve('@auth/core/package.json')
+  } else {
+    // Fallback: construct path manually
+    resolvedPath = join(projectRoot, 'node_modules', '@auth', 'core', 'package.json')
+  }
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Path not found: ${resolvedPath}`)
+  }
   const pkg = JSON.parse(readFileSync(resolvedPath, 'utf-8'))
   console.log(`✓ Resolved @auth/core: ${pkg.version} at ${resolvedPath}`)
 } catch (err) {

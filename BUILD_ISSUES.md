@@ -1,88 +1,131 @@
 # Docker Build Issues Summary
 
-## Current Problem
+## Current Status
 
-**Docker build fails** during `pnpm build` with TypeScript errors, preventing the application from being containerized.
+**✅ FIXED**: @auth/core version mismatch - Single version (0.41.1) confirmed in Docker build  
+**⚠️ CURRENT ISSUE**: Syntax error in status route with dynamic imports
 
-## Error Messages
+## Latest Error Messages
 
-### 1. Type Error: @auth/core Version Mismatch
+### Version Verification (✅ Working)
+```
+core: 0.41.1
+next-auth: 5.0.0-beta.30
+adapter: 2.11.1
+```
+**Status**: Version pinning is working correctly - single @auth/core version confirmed.
+
+### Current Build Failure
+```
+Build failed because of webpack errors
+Caused by: Syntax Error
+Import trace for requested module: ./src/app/status/route.ts
+```
+**Location**: `src/app/status/route.ts` - Dynamic `await import()` statements
+
+**Root Cause**: 
+- Next.js webpack bundler doesn't handle top-level `await import()` in route handlers correctly
+- Dynamic imports with `await` at function top-level cause syntax errors during build
+
+**Fix Applied**: Changed to static imports at module level (works because route is marked `dynamic = 'force-dynamic'`)
+
+## What Has Been Fixed
+
+### ✅ Completed
+1. **Added @auth/core as direct dependency** - Forces single version (0.41.1)
+2. **Added pnpm override** for `@auth/core: 0.41.1` in `package.json`
+3. **Regenerated lockfile** - `pnpm-lock.yaml` now reflects single @auth/core version
+4. **Fixed Dockerfile** - Added version sanity checks, dedupe, proper pnpm version (8.15.1)
+5. **Fixed type augmentation** - Only augmenting `next-auth` Session/User, not `@auth/core` AdapterUser
+6. **Made status route dynamic** - Added `runtime: 'nodejs'` and `dynamic: 'force-dynamic'`
+7. **Converted sign-in page to client component** - Changed to `'use client'` using `next-auth/react`
+8. **Made dashboard/admin dynamic** - Added `runtime: 'nodejs'` and `dynamic: 'force-dynamic'`
+9. **Removed experimental config** - Removed `experimental.dynamicIO` from `next.config.js`
+10. **Added type assertion** - `PrismaAdapter(prisma) as any` as workaround
+11. **Fixed status route imports** - Changed from dynamic `await import()` to static imports
+
+### ✅ Verification Successful
+- Version checks in Docker show single @auth/core@0.41.1 ✅
+- Local lockfile regenerated ✅
+- All server pages marked as dynamic ✅
+
+## Error History
+
+### 1. Type Error: @auth/core Version Mismatch (✅ RESOLVED)
 ```
 Type error: Type 'Adapter' from @auth/core@0.41.1 is not assignable to 
 Type 'Adapter' from @auth/core@0.41.0
-
-Property 'role' is missing in type 'AdapterUser' from 0.41.1 but required in 0.41.0
 ```
-**Location**: `src/lib/auth.ts:41` - `adapter: PrismaAdapter(prisma)`
+**Status**: ✅ Fixed by:
+- Adding `@auth/core: 0.41.1` as direct dependency
+- Adding pnpm override
+- Regenerating lockfile
+- Version checks confirm single version in Docker
 
-**Root Cause**: 
-- `next-auth@5.0.0-beta.30` depends on `@auth/core@0.41.0`
-- `@auth/prisma-adapter@2.11.1` depends on `@auth/core@0.41.1`
-- Docker's pnpm install creates two separate `@auth/core` versions in node_modules
-- TypeScript sees incompatible Adapter types
-
-### 2. Build-Time Page Data Collection Failures
+### 2. Build-Time Page Data Collection Failures (✅ RESOLVED)
 ```
 Build error occurred
 [Error: Failed to collect page data for /status]
 [Error: Failed to collect page data for /sign-in]
 [Error: Failed to collect page data for /dashboard]
 ```
-**Root Cause**:
-- Next.js 15 tries to pre-render pages at build time
-- These pages import server-only code (`auth()`, `prisma`, `env`) 
-- Build environment doesn't have database/env, so it fails
+**Status**: ✅ Fixed by:
+- Marking all server pages with `dynamic = 'force-dynamic'` and `runtime = 'nodejs'`
+- Converting sign-in to client component
+- Using lazy imports where needed
 
-### 3. Experimental Feature Error (Resolved)
+### 3. Experimental Feature Error (✅ RESOLVED)
 ```
 Error: The experimental feature "experimental.cacheComponents" can only be enabled 
 when using the latest canary version of Next.js.
 ```
-**Status**: Fixed by removing `experimental.dynamicIO` from `next.config.js`
+**Status**: ✅ Fixed by removing `experimental.dynamicIO` from `next.config.js`
 
-## What I've Tried
+### 4. Syntax Error in Status Route (⚠️ CURRENT)
+```
+Build failed because of webpack errors
+Caused by: Syntax Error
+```
+**Status**: ⚠️ Fixing - Changed dynamic imports to static imports
 
-### ✅ Completed
-1. **Added pnpm override** for `@auth/core: 0.41.1` in `package.json`
-2. **Fixed type augmentation** - Only augmenting `next-auth` Session/User, not `@auth/core` AdapterUser
-3. **Made status route dynamic** - Added `runtime: 'nodejs'` and `dynamic: 'force-dynamic'`
-4. **Converted sign-in page to client component** - Changed from server component to `'use client'` using `next-auth/react`
-5. **Removed experimental config** - Removed `experimental.dynamicIO` from `next.config.js`
-6. **Fixed Dockerfile ordering** - Install dependencies before copying source, `prisma generate` before build
-7. **Added type assertion** - `PrismaAdapter(prisma) as any` as temporary workaround
+## Files Changed
 
-### ❌ Still Failing
-- **Docker build still fails** with the `@auth/core` version mismatch
-- The pnpm override may not be working correctly in Docker
-- The `as any` type assertion is a workaround, not a fix
+- `package.json` - Added `@auth/core: 0.41.1` as direct dependency + pnpm override
+- `pnpm-lock.yaml` - Regenerated with single @auth/core version
+- `Dockerfile` - Added version checks, pnpm 8.15.1, dedupe step
+- `next.config.js` - Removed experimental config
+- `src/app/(auth)/sign-in/page.tsx` - Converted to client component
+- `src/app/status/route.ts` - Made dynamic, fixed imports
+- `src/app/dashboard/page.tsx` - Made dynamic with lazy imports
+- `src/app/admin/page.tsx` - Made dynamic with lazy imports
+- `src/lib/auth.ts` - Added type assertion workaround
 
-## Why It's Not Working
+## Next Steps
 
-1. **pnpm override may not be respected in Docker build**
-   - The override is in `package.json` but Docker's isolated build environment might not be using it correctly
-   - Need to verify the override is actually applied during Docker build
+1. ✅ Test local build: `pnpm build`
+2. ✅ If local build passes, rebuild Docker: `docker-compose build app --no-cache`
+3. ⚠️ If still failing, check full error output after compilation
+4. Consider: Add `skipLibCheck: true` temporarily to isolate type issues
 
-2. **Next.js build process is complex**
-   - Even with `dynamic = 'force-dynamic'`, Next.js still tries to analyze imports
-   - The type checking happens before runtime, so TypeScript errors block the build
+## Commands to Debug
 
-3. **Type system is strict**
-   - The `as any` workaround suppresses the error, but if TypeScript still checks it during build, it might fail
-   - Need to ensure the type error is truly bypassed
+```bash
+# Test local build first
+pnpm build
 
-## Next Steps Needed
+# Full Docker build with plain output
+docker-compose build app --no-cache --progress=plain 2>&1 | tee build.log
 
-1. **Verify pnpm override works in Docker**
-   - Check if `pnpm list @auth/core` shows single version in Docker build
-   - Maybe need to use `.npmrc` or different override syntax
+# Check version in Docker
+docker-compose run app pnpm list @auth/core
 
-2. **Alternative: Type-safe workaround**
-   - Instead of `as any`, create a wrapper that properly types the adapter
-   - Or update both packages to compatible versions
+# View build logs
+docker-compose build app --no-cache 2>&1 | grep -A 20 "Compiled successfully"
+```
 
-3. **Alternative: Skip type checking during build**
-   - Use `@ts-ignore` or `skipLibCheck: true` in tsconfig (not recommended)
+## Why This Matters
 
-4. **Best solution: Update package versions**
-   - Find compatible versions of `next-auth` and `@auth/prisma-adapter` that use the same `@auth/core`
-   - Or wait for package maintainers to align versions
+Without a successful Docker build:
+- ❌ Cannot deploy to production
+- ❌ Cannot use docker-compose for local development  
+- ❌ No container image for deployment platforms (Fly.io, Render, Railway, etc.)

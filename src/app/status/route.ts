@@ -1,3 +1,7 @@
+import { prisma } from '@/lib/prisma'
+import { env } from '@/lib/env'
+import { getIO } from '@/lib/io'
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -7,11 +11,6 @@ export const dynamic = 'force-dynamic'
  * Returns status of database, Redis (if configured), and Socket.io
  */
 export async function GET() {
-  // Lazy load these at runtime to avoid build-time errors
-  const { prisma } = await import('@/lib/prisma')
-  const { env } = await import('@/lib/env')
-  const { getIO } = await import('@/lib/io')
-
   const status = {
     ok: true,
     timestamp: new Date().toISOString(),

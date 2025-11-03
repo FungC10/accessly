@@ -4,7 +4,7 @@
  * Exits with code 1 if violations found
  */
 
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { globSync } from 'glob'
@@ -49,7 +49,7 @@ let hasViolations = false
 for (const pattern of MUST_BE_DYNAMIC) {
   const filePath = join(projectRoot, pattern)
   
-  if (!require('fs').existsSync(filePath)) {
+  if (!existsSync(filePath)) {
     continue // File doesn't exist, skip
   }
   
