@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const roomId = searchParams.get('roomId')
     const cursor = searchParams.get('cursor')
+    const after = searchParams.get('after') // For fetching messages after a specific message ID
     const limitParam = searchParams.get('limit')
 
     if (!roomId) {
@@ -80,13 +81,18 @@ export async function GET(request: Request) {
         roomId,
         ...(cursor && {
           id: {
-            lt: cursor,
+            lt: cursor, // For pagination backwards (older messages)
+          },
+        }),
+        ...(after && {
+          id: {
+            gt: after, // For fetching newer messages after a specific ID
           },
         }),
       },
       take: limit,
       orderBy: {
-        createdAt: 'desc',
+        createdAt: after ? 'asc' : 'desc', // Ascending for after, descending for cursor
       },
       include: {
         user: {
@@ -99,8 +105,9 @@ export async function GET(request: Request) {
       },
     })
 
-    // Reverse to get chronological order (oldest first)
-    const orderedMessages = messages.reverse()
+    // Reverse to get chronological order (oldest first) - only if using cursor (descending order)
+    // If using 'after', messages are already in ascending order
+    const orderedMessages = after ? messages : messages.reverse()
     const nextCursor = orderedMessages.length > 0 ? orderedMessages[0].id : null
 
     return Response.json({

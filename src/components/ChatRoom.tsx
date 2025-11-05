@@ -1,27 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { initSocket, getSocket, disconnectSocket } from '@/lib/socket'
+import { initSocket } from '@/lib/socket'
+import { useChatStore, Message as Msg } from '@/lib/chatStore'
+import { isNearBottom, scrollToBottom, preserveScrollOnPrepend } from '@/lib/scroll'
 import { MessageItem } from './MessageItem'
 import { PresenceBar } from './PresenceBar'
-import { Toast } from './Toast'
 
 // Store unsent messages per room (outside component to persist across re-renders)
 const unsentMessages: Record<string, string> = {}
-
-interface Message {
-  id: string
-  roomId: string
-  userId: string
-  content: string
-  createdAt: string
-  user: {
-    id: string
-    name: string | null
-    image: string | null
-  }
-}
 
 interface ChatRoomProps {
   roomId: string
@@ -32,165 +20,268 @@ interface ChatRoomProps {
 
 export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessagesLoaded }: ChatRoomProps) {
   const { data: session } = useSession()
-  const [messages, setMessages] = useState<Message[]>([])
-  // Initialize input from saved unsent message for this room
+  
+  // Subscribe to the room slice directly (not via getter method)
+  const room = useChatStore((s) => s.rooms[roomId])
+  const setRoom = useChatStore((s) => s.setRoom)
+  const upsertMessages = useChatStore((s) => s.upsertMessages)
+
+  const messages: Msg[] = room?.messages ?? []
+
   const [input, setInput] = useState(() => unsentMessages[roomId] || '')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const hasInitialisedRef = useRef(false) // for this room lifecycle
   const currentRoomIdRef = useRef<string>(roomId)
+  const prevRoomIdRef = useRef(roomId)
   const inputRef = useRef<string>(input)
-  
+
   // Keep inputRef in sync with input state
   useEffect(() => {
     inputRef.current = input
   }, [input])
-  
+
   // Save input to unsentMessages whenever it changes (only for the current room)
   useEffect(() => {
-    // Only save if we're still on the same room
     if (currentRoomIdRef.current === roomId) {
       unsentMessages[roomId] = input
       inputRef.current = input
     }
   }, [input, roomId])
-  
+
   // Handle room switching: save previous room's input, restore new room's input
   useEffect(() => {
     const previousRoomId = currentRoomIdRef.current
-    
-    // If switching rooms, save the current input to the previous room (use ref to get latest value)
+
     if (previousRoomId && previousRoomId !== roomId) {
       unsentMessages[previousRoomId] = inputRef.current
     }
-    
-    // Restore input for the new room
+
     const savedInput = unsentMessages[roomId] || ''
     setInput(savedInput)
     inputRef.current = savedInput
-    
-    // Update ref to current room
     currentRoomIdRef.current = roomId
-  }, [roomId]) // Only run when roomId changes, not when input changes
+  }, [roomId])
 
+  // 2) Save the previous room's scrollTop when roomId changes (only if initialised)
+  useEffect(() => {
+    const el = messagesContainerRef.current
+    if (
+      el &&
+      prevRoomIdRef.current &&
+      prevRoomIdRef.current !== roomId &&
+      hasInitialisedRef.current // <- don't save if not initialised
+    ) {
+      setRoom(prevRoomIdRef.current, { scrollTop: el.scrollTop })
+    }
+    prevRoomIdRef.current = roomId
+  }, [roomId, setRoom])
+
+  // 4.1 Save scrollTop when unmounting or switching away (only if initialised)
+  useEffect(() => {
+    return () => {
+      const el = messagesContainerRef.current
+      if (el && hasInitialisedRef.current) {
+        setRoom(roomId, { scrollTop: el.scrollTop })
+      }
+    }
+  }, [roomId, setRoom])
+
+  // 3) Restore scroll after the new list exists (double rAF) and with tight deps
+  useLayoutEffect(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+
+    hasInitialisedRef.current = false
+
+    if (room?.messages?.length) {
+      // 1) ensure messages render instead of loader
+      setIsLoadingMessages(false)
+
+      // 2) wait for them to paint (double rAF)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!messagesContainerRef.current) return
+          const box = messagesContainerRef.current
+          if (room.scrollTop != null) {
+            box.scrollTop = room.scrollTop
+          } else {
+            // first visit to this room → jump to bottom
+            box.scrollTop = box.scrollHeight
+          }
+          hasInitialisedRef.current = true
+        })
+      })
+    } else {
+      setIsLoadingMessages(true)
+    }
+    // Watch exactly the pieces that matter for restoration
+  }, [roomId, room?.messages?.length, room?.scrollTop])
+
+  // 4.3 Initial fetch if needed
   useEffect(() => {
     if (!session?.user?.id) return
 
-    // Clear messages when switching rooms to prevent flash
-    setMessages([])
-    setIsLoadingMessages(true)
+    if (room?.messages?.length) {
+      // optional: fetch incrementals after initial paint
+      void fetchNewerAfter()
+      onMessagesLoaded?.()
+      return
+    }
 
-    // Initialize socket connection
+    void fetchInitial()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, session?.user?.id])
+
+  // 4.4 Socket for live messages (only affect current room)
+  useEffect(() => {
+    if (!session?.user?.id) return
+
     const socket = initSocket(session.user.id)
 
-    // Join room
-    socket.emit('room:join', { roomId, userId: session.user.id })
+    const handleMessageNew = (m: Msg) => {
+      if (m.roomId !== roomId || !m.user?.id) return
 
-    // Listen for new messages (with room filter)
-    const handleMessageNew = (message: Message) => {
-      // Only process messages for the current room
-      if (message.roomId === roomId && message.user?.id) {
-        setMessages((prev) => {
-          // Deduplicate: check if message already exists (avoid duplicates from API + Socket)
-          const exists = prev.some((m) => m.id === message.id)
-          if (exists) {
-            return prev // Message already in list, don't add again
-          }
-          return [...prev, message]
-        })
+      const el = messagesContainerRef.current
+      const atBottom = el ? isNearBottom(el, 100) : true
+
+      upsertMessages(roomId, [m])
+
+      // Only snap to bottom if at/near bottom already
+      if (el && atBottom) {
+        scrollToBottom(el)
+        setRoom(roomId, { scrollTop: el.scrollTop })
       }
     }
 
     socket.on('message:new', handleMessageNew)
-
-    // Load initial messages
-    fetchMessages()
+    socket.emit('room:join', { roomId, userId: session.user.id })
 
     return () => {
       socket.off('message:new', handleMessageNew)
       socket.emit('room:leave', { roomId, userId: session.user.id })
-      // Don't disconnect socket on room change, only on unmount
     }
-  }, [roomId, session?.user?.id])
+  }, [roomId, session?.user?.id, upsertMessages, setRoom])
 
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesContainerRef.current && messages.length > 0) {
-      // After messages finish loading, instantly scroll to bottom (no animation)
-      if (!isLoadingMessages) {
-        // Use requestAnimationFrame to ensure DOM has updated
-        requestAnimationFrame(() => {
-          if (messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
-          }
-        })
-      }
-    }
-  }, [isLoadingMessages, messages.length])
+  // 4.5 Track user scroll → remember per-room
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!hasInitialisedRef.current) return
+    useChatStore.getState().setRoom(roomId, { scrollTop: e.currentTarget.scrollTop })
+  }
 
-  // Scroll smoothly for new incoming messages (after initial load)
-  useEffect(() => {
-    if (messagesEndRef.current && messages.length > 0 && !isLoadingMessages) {
-      // Only smooth scroll if we're not at the bottom (user might be reading old messages)
-      const container = messagesContainerRef.current
-      if (container) {
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
-        if (isNearBottom) {
-          // User is near bottom, smooth scroll to new messages
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-        }
-      }
-    }
-  }, [messages.length, isLoadingMessages])
+  // 4.6 Pagination: load older (on demand or when top sentinel enters view)
+  const fetchOlder = async () => {
+    const el = messagesContainerRef.current
+    if (!el) return
 
-  const fetchMessages = async () => {
+    const currentCursor = useChatStore.getState().rooms[roomId]?.cursor ?? room?.cursor ?? null
+    if (!currentCursor) return // no older
+
     try {
       setIsLoadingMessages(true)
-      const response = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50`)
-      if (!response.ok) {
-        throw new Error('Failed to load messages')
-      }
-      const data = await response.json()
-      // API returns { ok: true, data: { messages: [...] } }
-      const rawMessages = data.data?.messages || data.messages || []
-      
-      // Filter out messages without valid user.id
-      const validMessages = rawMessages.filter((msg: Message) => {
-        if (!msg.user?.id) {
-          console.warn('Message missing user.id, filtering out:', msg)
-          return false
-        }
-        return true
+
+      const res = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50&cursor=${currentCursor}`)
+      const json = await res.json()
+      const older: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+
+      if (older.length === 0) return
+
+      // Prepend older with anchored scroll
+      preserveScrollOnPrepend(el, () => {
+        upsertMessages(roomId, older, { asPrepend: true })
       })
-      
-      setMessages(validMessages)
+
+      // Update cursor to the new oldest
+      const newOldest = older[0]?.id ?? currentCursor
+      setRoom(roomId, { cursor: newOldest })
     } catch (err) {
-      console.error('Error fetching messages:', err)
-      setError('Failed to load messages')
+      console.error('Error fetching older messages:', err)
     } finally {
       setIsLoadingMessages(false)
-      // Notify parent that messages have loaded
-      if (onMessagesLoaded) {
-        onMessagesLoaded()
-      }
     }
   }
 
+  // 4.7 Incremental fetch for *newer* messages after what we have (optional on enter)
+  const fetchNewerAfter = async () => {
+    const lastId =
+      useChatStore.getState().rooms[roomId]?.lastMessageId ??
+      room?.lastMessageId ??
+      null
+    if (!lastId) return
+
+    try {
+      const res = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50&after=${lastId}`)
+      const json = await res.json()
+      const newer: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+
+      if (!newer.length) return
+
+      upsertMessages(roomId, newer)
+
+      // If user was at bottom, keep them at bottom
+      const el = messagesContainerRef.current
+      if (el && isNearBottom(el, 100)) {
+        scrollToBottom(el)
+        setRoom(roomId, { scrollTop: el.scrollTop })
+      }
+    } catch (err) {
+      console.error('Error fetching newer messages:', err)
+    }
+  }
+
+  // 4.8 First-time fetch (latest page) → render → jump to bottom (no animation)
+  const fetchInitial = async () => {
+    try {
+      setIsLoadingMessages(true)
+      const res = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50`)
+      const json = await res.json()
+      const msgs: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+
+      // Store messages; also set cursor & lastMessageId
+      const oldest = msgs[0]?.id ?? null
+      const newest = msgs[msgs.length - 1]?.id ?? null
+      setRoom(roomId, { cursor: oldest, lastMessageId: newest })
+      upsertMessages(roomId, msgs)
+    } catch (err) {
+      console.error('Error fetching initial messages:', err)
+      setError('Failed to load messages')
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    } finally {
+      setIsLoadingMessages(false)
+
+      // Now that they've rendered, snap to bottom instantly
+      const el = messagesContainerRef.current
+      if (el) {
+        scrollToBottom(el) // immediate (no smooth)
+        setRoom(roomId, { scrollTop: el.scrollTop })
+      }
+
+      hasInitialisedRef.current = true
+      onMessagesLoaded?.()
+
+      // Optional: immediately poll for any very-new messages
+      void fetchNewerAfter()
+    }
+  }
+
+  // Send message function
   const sendMessage = async () => {
     if (!input.trim() || !session?.user?.id) return
 
     const content = input.trim()
-    // Clear input and saved unsent message for this room
     setInput('')
     unsentMessages[roomId] = ''
     setIsLoading(true)
     setError(null)
 
     // Optimistic update
-    const optimisticMessage: Message = {
+    const optimisticMessage: Msg = {
       id: `temp-${Date.now()}`,
       roomId,
       userId: session.user.id,
@@ -202,7 +293,8 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
         image: session.user.image,
       },
     }
-    setMessages((prev) => [...prev, optimisticMessage])
+
+    upsertMessages(roomId, [optimisticMessage])
 
     try {
       const response = await fetch('/api/chat/messages', {
@@ -218,48 +310,48 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
 
       const data = await response.json()
 
-      // Check if API returned an error response
-      // API returns { ok: false, message: '...' } for errors
       if (!response.ok || !data.ok) {
         const errorMessage = data.message || data.error || 'Failed to send message'
         throw new Error(errorMessage)
       }
 
-      // Remove optimistic message and add real one
-      // API returns { ok: true, data: { ...message } }
       const savedMessage = data.data
-      
-      // Validate saved message structure
+
       if (!savedMessage || typeof savedMessage !== 'object') {
         console.error('Invalid saved message format:', savedMessage)
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+        // Remove optimistic message
+        const currentMessages = room?.messages ?? []
+        const filtered = currentMessages.filter((m: Msg) => m.id !== optimisticMessage.id)
+        setRoom(roomId, { messages: filtered })
         throw new Error('Invalid message format from server')
       }
-      
-      // Ensure saved message has user object with id
+
       if (!savedMessage.user || !savedMessage.user.id) {
         console.error('Saved message missing user.id:', savedMessage)
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+        // Remove optimistic message
+        const currentMessages = room?.messages ?? []
+        const filtered = currentMessages.filter((m: Msg) => m.id !== optimisticMessage.id)
+        setRoom(roomId, { messages: filtered })
         throw new Error('Invalid message format from server')
       }
-      
-      setMessages((prev) => {
-        // Remove optimistic message
-        const filtered = prev.filter((m) => m.id !== optimisticMessage.id)
-        
-        // Check if saved message already exists (from Socket.io event)
-        const exists = filtered.some((m) => m.id === savedMessage.id)
-        if (exists) {
-          // Message already added via Socket.io, just return filtered list
-          return filtered
-        }
-        
-        // Add saved message if it doesn't exist
-        return [...filtered, savedMessage]
-      })
+
+      // Remove optimistic and add real message (upsertMessages handles deduplication)
+      const currentMessages = room?.messages ?? []
+      const filtered = currentMessages.filter((m: Msg) => m.id !== optimisticMessage.id)
+
+      // Check if saved message already exists (from Socket.io event)
+      const exists = filtered.some((m: Msg) => m.id === savedMessage.id)
+      if (!exists) {
+        upsertMessages(roomId, [savedMessage])
+      } else {
+        // Already added via Socket.io, just remove optimistic
+        setRoom(roomId, { messages: filtered })
+      }
     } catch (err: any) {
       // Remove optimistic message on error
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+      const currentMessages = room?.messages ?? []
+      const filtered = currentMessages.filter((m: Msg) => m.id !== optimisticMessage.id)
+      setRoom(roomId, { messages: filtered })
 
       setError(err.message || 'Failed to send message')
       setShowToast(true)
@@ -290,25 +382,26 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
 
       {/* Messages - only this area updates when switching rooms */}
       <div
-        key={roomId} // Key here ensures clean message list when room changes
         ref={messagesContainerRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0"
         role="log"
         aria-live="polite"
         aria-label="Chat messages"
       >
-        {isLoadingMessages || isSwitchingRoom ? (
+        {(isLoadingMessages && !(room?.messages?.length)) ? (
+          // Only show loader if there's NO cache to display
           <div className="flex items-center justify-center h-full">
             <div className="text-slate-400">Loading messages...</div>
           </div>
         ) : (
           <>
             {messages
-              .filter((message) => message.user?.id) // Filter out messages without user.id
-              .map((message) => (
+              .filter((m) => m.user?.id) // Filter out messages without user.id
+              .map((m) => (
                 <MessageItem 
-                  key={message.id} 
-                  message={message} 
+                  key={m.id} 
+                  message={m} 
                   currentUserId={session.user!.id} 
                 />
               ))}
