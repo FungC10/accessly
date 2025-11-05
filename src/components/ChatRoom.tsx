@@ -40,7 +40,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
   const currentRoomIdRef = useRef<string>(roomId)
   const prevRoomIdRef = useRef(roomId)
   const inputRef = useRef<string>(input)
-  const [isRestoringScroll, setIsRestoringScroll] = useState(false)
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false) // For pagination indicator
 
   // Keep inputRef in sync with input state
   useEffect(() => {
@@ -93,7 +93,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
     }
   }, [roomId, setRoom])
 
-  // 3) Restore scroll synchronously (before paint) for cached messages
+  // 3) Restore scroll after paint (double rAF) for cached messages
   useLayoutEffect(() => {
     const el = messagesContainerRef.current
     if (!el) return
@@ -107,47 +107,43 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
 
     hasInitialisedRef.current = false
 
-    if (room?.messages?.length) {
-      // 1) ensure messages render instead of loader
+    // If room exists in cache (even if empty), render immediately (no loader)
+    if (room) {
+      // 1) Render cached messages immediately (no loader, even if empty)
       setIsLoadingMessages(false)
 
-      // 2) For cached messages with saved scroll position, hide container until scroll is set
-      if (room.scrollTop != null && room.scrollTop > 0) {
-        // Hide container to prevent flash
-        setIsRestoringScroll(true)
-        
-        // Set scroll synchronously in useLayoutEffect (before paint)
-        el.scrollTop = room.scrollTop
-        
-        // Use double rAF to ensure layout is complete, then show container
+      // 2) Restore scroll after paint using double rAF (container stays visible)
+      if (room.messages?.length && room.scrollTop != null && room.scrollTop > 0) {
+        // Restore exact position after commit and paint
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (messagesContainerRef.current) {
-              // Ensure scroll position is correct
-              if (messagesContainerRef.current.scrollTop !== room.scrollTop) {
-                messagesContainerRef.current.scrollTop = room.scrollTop!
-              }
-              // Now show the container (no flash!)
-              setIsRestoringScroll(false)
+              // Set scrollTop instantly (no animation, scrollBehavior: auto ensures this)
+              messagesContainerRef.current.scrollTop = room.scrollTop!
               hasInitialisedRef.current = true
             }
           })
         })
       } else {
-        // First visit to this room → wait for DOM to paint, then jump to bottom
-        setIsRestoringScroll(false) // Show immediately for first visit
+        // First visit to this room or empty room → snap to bottom instantly (or stay at top if empty)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (!messagesContainerRef.current) return
             const box = messagesContainerRef.current
-            box.scrollTop = box.scrollHeight
+            // Only scroll to bottom if there are messages
+            if (room.messages?.length) {
+              box.scrollTop = box.scrollHeight
+            } else {
+              // Empty room - keep at top (or set to 0)
+              box.scrollTop = 0
+            }
             hasInitialisedRef.current = true
           })
         })
       }
     } else {
+      // No cache → show loader on first visit only
       setIsLoadingMessages(true)
-      setIsRestoringScroll(false)
     }
     // Watch only roomId and messages length, NOT scrollTop (to avoid re-running on scroll)
   }, [roomId, room?.messages?.length])
@@ -156,13 +152,17 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
   useEffect(() => {
     if (!session?.user?.id) return
 
-    if (room?.messages?.length) {
-      // optional: fetch incrementals after initial paint
-      void fetchNewerAfter()
+    // If room exists in cache (even if empty), don't fetch again
+    if (room) {
+      // optional: fetch incrementals after initial paint (only if we have messages)
+      if (room.messages?.length) {
+        void fetchNewerAfter()
+      }
       onMessagesLoaded?.()
       return
     }
 
+    // No cache → fetch initial messages
     void fetchInitial()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, session?.user?.id])
@@ -212,7 +212,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
     if (!currentCursor) return // no older
 
     try {
-      setIsLoadingMessages(true)
+      setIsLoadingOlder(true) // Show inline indicator, not full-screen loader
 
       const res = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50&cursor=${currentCursor}`)
       const json = await res.json()
@@ -220,7 +220,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
 
       if (older.length === 0) return
 
-      // Prepend older with anchored scroll
+      // Prepend older with anchored scroll (preserves viewport)
       preserveScrollOnPrepend(el, () => {
         upsertMessages(roomId, older, { asPrepend: true })
       })
@@ -231,7 +231,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
     } catch (err) {
       console.error('Error fetching older messages:', err)
     } finally {
-      setIsLoadingMessages(false)
+      setIsLoadingOlder(false)
     }
   }
 
@@ -271,9 +271,10 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
       const json = await res.json()
       const msgs: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
 
-      // Store messages; also set cursor & lastMessageId
+      // Store messages (even if empty); also set cursor & lastMessageId
       const oldest = msgs[0]?.id ?? null
       const newest = msgs[msgs.length - 1]?.id ?? null
+      // Create room entry in cache (even if empty) so we don't fetch again
       setRoom(roomId, { cursor: oldest, lastMessageId: newest })
       upsertMessages(roomId, msgs)
     } catch (err) {
@@ -413,18 +414,25 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto p-6 space-y-4 min-h-0 ${isRestoringScroll ? 'invisible' : ''}`}
+        className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0"
+        style={{ scrollBehavior: 'auto' }}
         role="log"
         aria-live="polite"
         aria-label="Chat messages"
       >
-        {(isLoadingMessages && !(room?.messages?.length)) ? (
-          // Only show loader if there's NO cache to display
+        {(isLoadingMessages && !room) ? (
+          // Only show loader on first visit to a room (no cache at all)
           <div className="flex items-center justify-center h-full">
             <div className="text-slate-400">Loading messages...</div>
           </div>
         ) : (
           <>
+            {/* Inline pagination indicator (subtle, at top) */}
+            {isLoadingOlder && (
+              <div className="text-center py-2 text-sm text-slate-500">
+                Loading older messages...
+              </div>
+            )}
             {messages
               .filter((m) => m.user?.id) // Filter out messages without user.id
               .map((m) => (
