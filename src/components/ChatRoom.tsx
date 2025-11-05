@@ -40,6 +40,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
   const [error, setError] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const currentRoomIdRef = useRef<string>(roomId)
   const inputRef = useRef<string>(input)
   
@@ -117,8 +118,33 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (messagesContainerRef.current && messages.length > 0) {
+      // After messages finish loading, instantly scroll to bottom (no animation)
+      if (!isLoadingMessages) {
+        // Use requestAnimationFrame to ensure DOM has updated
+        requestAnimationFrame(() => {
+          if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+          }
+        })
+      }
+    }
+  }, [isLoadingMessages, messages.length])
+
+  // Scroll smoothly for new incoming messages (after initial load)
+  useEffect(() => {
+    if (messagesEndRef.current && messages.length > 0 && !isLoadingMessages) {
+      // Only smooth scroll if we're not at the bottom (user might be reading old messages)
+      const container = messagesContainerRef.current
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
+        if (isNearBottom) {
+          // User is near bottom, smooth scroll to new messages
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+        }
+      }
+    }
+  }, [messages.length, isLoadingMessages])
 
   const fetchMessages = async () => {
     try {
@@ -265,6 +291,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
       {/* Messages - only this area updates when switching rooms */}
       <div
         key={roomId} // Key here ensures clean message list when room changes
+        ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0"
         role="log"
         aria-live="polite"
