@@ -259,7 +259,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
       {/* Header - stays stable when switching rooms */}
       <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
         <h2 className="text-xl font-semibold">{roomName}</h2>
-        {!isSwitchingRoom && <PresenceBar roomId={roomId} />}
+        <PresenceBar roomId={roomId} />
       </div>
 
       {/* Messages - only this area updates when switching rooms */}

@@ -24,16 +24,22 @@ export function PresenceBar({ roomId }: PresenceBarProps) {
 
     // Listen for user online
     const handleUserOnline = (data: OnlineUser) => {
-      setOnlineUsers((prev) => new Set(prev).add(data.userId))
+      // Only process events for the current room
+      if (data.roomId === roomId) {
+        setOnlineUsers((prev) => new Set(prev).add(data.userId))
+      }
     }
 
     // Listen for user offline
-    const handleUserOffline = (data: { userId: string }) => {
-      setOnlineUsers((prev) => {
-        const next = new Set(prev)
-        next.delete(data.userId)
-        return next
-      })
+    const handleUserOffline = (data: { userId: string; roomId?: string }) => {
+      // Only process events for the current room
+      if (!data.roomId || data.roomId === roomId) {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev)
+          next.delete(data.userId)
+          return next
+        })
+      }
     }
 
     socket.on('user:online', handleUserOnline)
@@ -50,24 +56,28 @@ export function PresenceBar({ roomId }: PresenceBarProps) {
     }
   }, [roomId, session?.user?.id])
 
-  if (onlineUsers.size === 0) {
-    return null
-  }
-
+  // Always render the container to prevent layout shift, even if empty
+  // This ensures the "Online:" text and border stay stable when switching rooms
   return (
-    <div className="flex items-center gap-2 mt-2">
+    <div className="flex items-center gap-2 mt-2 min-h-[20px]">
       <span className="text-xs text-slate-400">Online:</span>
-      <div className="flex items-center gap-2">
-        {Array.from(onlineUsers).map((userId) => (
-          <div key={userId} className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <span className="text-xs text-slate-300">
-              {userId === session?.user?.id ? 'You' : `User ${userId.slice(0, 4)}`}
-            </span>
+      {onlineUsers.size > 0 ? (
+        <>
+          <div className="flex items-center gap-2">
+            {Array.from(onlineUsers).map((userId) => (
+              <div key={userId} className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <span className="text-xs text-slate-300">
+                  {userId === session?.user?.id ? 'You' : `User ${userId.slice(0, 4)}`}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <span className="text-xs text-slate-500">({onlineUsers.size})</span>
+          <span className="text-xs text-slate-500">({onlineUsers.size})</span>
+        </>
+      ) : (
+        <span className="text-xs text-slate-500">No one online</span>
+      )}
     </div>
   )
 }
