@@ -7,6 +7,9 @@ import { MessageItem } from './MessageItem'
 import { PresenceBar } from './PresenceBar'
 import { Toast } from './Toast'
 
+// Store unsent messages per room (outside component to persist across re-renders)
+const unsentMessages: Record<string, string> = {}
+
 interface Message {
   id: string
   roomId: string
@@ -30,12 +33,47 @@ interface ChatRoomProps {
 export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessagesLoaded }: ChatRoomProps) {
   const { data: session } = useSession()
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
+  // Initialize input from saved unsent message for this room
+  const [input, setInput] = useState(() => unsentMessages[roomId] || '')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const currentRoomIdRef = useRef<string>(roomId)
+  const inputRef = useRef<string>(input)
+  
+  // Keep inputRef in sync with input state
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
+  
+  // Save input to unsentMessages whenever it changes (only for the current room)
+  useEffect(() => {
+    // Only save if we're still on the same room
+    if (currentRoomIdRef.current === roomId) {
+      unsentMessages[roomId] = input
+      inputRef.current = input
+    }
+  }, [input, roomId])
+  
+  // Handle room switching: save previous room's input, restore new room's input
+  useEffect(() => {
+    const previousRoomId = currentRoomIdRef.current
+    
+    // If switching rooms, save the current input to the previous room (use ref to get latest value)
+    if (previousRoomId && previousRoomId !== roomId) {
+      unsentMessages[previousRoomId] = inputRef.current
+    }
+    
+    // Restore input for the new room
+    const savedInput = unsentMessages[roomId] || ''
+    setInput(savedInput)
+    inputRef.current = savedInput
+    
+    // Update ref to current room
+    currentRoomIdRef.current = roomId
+  }, [roomId]) // Only run when roomId changes, not when input changes
 
   useEffect(() => {
     if (!session?.user?.id) return
@@ -119,7 +157,9 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
     if (!input.trim() || !session?.user?.id) return
 
     const content = input.trim()
+    // Clear input and saved unsent message for this room
     setInput('')
+    unsentMessages[roomId] = ''
     setIsLoading(true)
     setError(null)
 
