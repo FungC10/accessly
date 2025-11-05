@@ -32,6 +32,11 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
   - Room joining (users can join public rooms)
 - **Presence Indicators**: Shows who's online in each room
 - **Message History**: Cursor-based pagination for efficient message loading
+- **Smart Caching**: Per-room message caching with Zustand for instant room switching
+- **Scroll Position Memory**: Remembers exact scroll position when switching between rooms
+- **Flash-Free Navigation**: Smooth room switching without visual jumps or flashes
+- **Incremental Loading**: Only fetches new messages since last visit for better performance
+- **Anchored Scroll**: Preserves scroll position when loading older messages (pagination)
 - **Rate Limiting**: Prevents message spam
 
 ### Dashboard & Admin
@@ -45,10 +50,13 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 
 ### Technical Features
 - **Type Safety**: Full TypeScript with Zod validation
+- **State Management**: Zustand for efficient client-side state management
 - **Testing**: Comprehensive test suite with Vitest
 - **Docker Support**: Multi-stage builds with docker-compose
 - **Horizontal Scaling**: Redis adapter for Socket.io (optional)
 - **Graceful Shutdown**: Proper cleanup of connections and resources
+- **Performance**: Optimized rendering with scroll restoration and message caching
+- **User Experience**: Instant scroll positioning, flash-free transitions
 
 ## Tech Stack
 
@@ -58,6 +66,7 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 - **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth (Auth.js) v5
 - **Realtime**: Socket.io with optional Redis adapter
+- **State Management**: Zustand
 - **Validation**: Zod
 - **Testing**: Vitest + Testing Library
 - **Password Hashing**: bcryptjs
@@ -224,7 +233,9 @@ src/
 │   ├── prisma.ts          # Prisma client singleton
 │   ├── rbac.ts            # Role-based access control
 │   ├── socket.ts          # Socket.io client
-│   └── validation.ts      # Zod schemas
+│   ├── validation.ts      # Zod schemas
+│   ├── chatStore.ts       # Zustand store for chat state
+│   └── scroll.ts          # Scroll utilities (preserve, restore)
 ├── data/                  # Seed scripts
 ├── tests/                 # Test files
 ├── prisma/                # Prisma schema and migrations
@@ -258,8 +269,27 @@ This project uses **Socket.io** for realtime chat and presence:
 - **Presence**: Shows online users in each room
 - **Scaling**: For production, use Redis adapter with `REDIS_URL` environment variable
 - **Connection**: Socket.io available at `/socket.io` path
+- **Room Events**: `room:join` and `room:leave` events for presence tracking
 
 See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
+
+## Chat Features
+
+### Message Caching
+- Messages are cached per room using Zustand
+- Switching rooms is instant when messages are already cached
+- Only fetches new messages since last visit
+
+### Scroll Position
+- Scroll position is remembered for each room
+- Returns to exact previous position when switching back
+- No flash or visual jumps during room navigation
+- Instant scroll to bottom on first visit (no animation)
+
+### Pagination
+- Load older messages with anchored scroll (preserves viewport)
+- Incremental loading of newer messages
+- Efficient cursor-based pagination
 
 ## Room System
 
