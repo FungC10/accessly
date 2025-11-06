@@ -13,12 +13,16 @@ declare module 'next-auth' {
   }
 
   interface User {
+    id: string
     role: Role
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role: Role
+    id?: string
+    role?: Role
+    // sub is already part of JWT standard, but we ensure it's typed
+    sub?: string
   }
 }

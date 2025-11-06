@@ -114,24 +114,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
-    async session({ session, token, user }) {
-      if (session.user) {
-        // For JWT strategy (credentials), use token
-        if (token) {
-          session.user.id = token.id as string
-          session.user.role = (token.role as Role) || Role.USER
-        }
-        // For database strategy (OAuth), use user
-        if (user) {
-          session.user.id = user.id
-          session.user.role = (user as any).role as Role
-        }
+    async session({ session, token }) {
+      if (session.user && token) {
+        // Use token.sub (NextAuth default) or token.id (fallback)
+        session.user.id = (token.sub as string) || (token.id as string) || ''
+        session.user.role = (token.role as Role) || Role.USER
       }
       return session
     },
     async jwt({ token, user }) {
       if (user) {
+        // token.sub is set automatically by NextAuth to user.id
+        // But we also set token.id for explicit access
         token.id = user.id
+        token.sub = user.id // Ensure sub is set (NextAuth default)
         token.role = (user as any).role || Role.USER
       }
       return token
