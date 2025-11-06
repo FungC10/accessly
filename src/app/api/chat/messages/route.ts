@@ -57,22 +57,59 @@ export async function GET(request: Request) {
 
     const { limit } = pagination.data
 
-    // Check if user is member of the room
+    // Check if room exists
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      select: { type: true, isPrivate: true },
+    })
+
+    if (!room) {
+      return Response.json({
+        ok: false,
+        code: 'ROOM_NOT_FOUND',
+        message: 'Room not found',
+      }, { status: 404 })
+    }
+
+    // Verify the user exists in DB and get their actual ID
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { id: true, email: true },
+    })
+
+    if (!dbUser) {
+      console.error('GET /api/chat/messages - User not found in database:', session.user.email)
+      return Response.json({
+        ok: false,
+        code: 'USER_NOT_FOUND',
+        message: 'User not found in database',
+      }, { status: 404 })
+    }
+
+    // Use DB user ID (source of truth)
+    const userId = dbUser.id
+
+    // Check if user is member of the room (required for all rooms) - use DB user ID
     const membership = await prisma.roomMember.findUnique({
       where: {
         userId_roomId: {
-          userId: session.user.id,
+          userId: userId, // Use DB user ID
           roomId,
         },
       },
     })
 
     if (!membership) {
+      console.error('GET /api/chat/messages - User not a member:', {
+        userId,
+        roomId,
+        sessionUserId: session.user.id,
+      })
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
         message: 'Not a member of this room',
-      })
+      }, { status: 403 })
     }
 
     // Fetch messages
@@ -109,6 +146,15 @@ export async function GET(request: Request) {
     // If using 'after', messages are already in ascending order
     const orderedMessages = after ? messages : messages.reverse()
     const nextCursor = orderedMessages.length > 0 ? orderedMessages[0].id : null
+
+    console.log('GET /api/chat/messages - Found messages:', {
+      roomId,
+      userId,
+      count: orderedMessages.length,
+      hasMessages: orderedMessages.length > 0,
+      firstMessageId: orderedMessages[0]?.id,
+      lastMessageId: orderedMessages[orderedMessages.length - 1]?.id,
+    })
 
     return Response.json({
       ok: true,
@@ -156,9 +202,27 @@ export async function POST(request: Request) {
       })
     }
 
-    // Rate limiting (use userId)
+    // Verify the user exists in DB and get their actual ID
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { id: true, email: true },
+    })
+
+    if (!dbUser) {
+      console.error('POST /api/chat/messages - User not found in database:', session.user.email)
+      return Response.json({
+        ok: false,
+        code: 'USER_NOT_FOUND',
+        message: 'User not found in database',
+      }, { status: 404 })
+    }
+
+    // Use DB user ID (source of truth)
+    const userId = dbUser.id
+
+    // Rate limiting (use DB user ID)
     try {
-      checkRate(session.user.id)
+      checkRate(userId)
     } catch (error: any) {
       if (error.code === 'RATE_LIMITED') {
         return Response.json({
@@ -170,29 +234,34 @@ export async function POST(request: Request) {
       throw error
     }
 
-    // Check if user is member of the room
+    // Check if user is member of the room (use DB user ID)
     const membership = await prisma.roomMember.findUnique({
       where: {
         userId_roomId: {
-          userId: session.user.id,
+          userId: userId, // Use DB user ID
           roomId: validated.data.roomId,
         },
       },
     })
 
     if (!membership) {
+      console.error('POST /api/chat/messages - User not a member:', {
+        userId,
+        roomId: validated.data.roomId,
+        sessionUserId: session.user.id,
+      })
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
         message: 'Not a member of this room',
-      })
+      }, { status: 403 })
     }
 
-    // Persist message to database
+    // Persist message to database (use DB user ID)
     const message = await prisma.message.create({
       data: {
         roomId: validated.data.roomId,
-        userId: session.user.id,
+        userId: userId, // Use DB user ID
         content: validated.data.content,
       },
       include: {

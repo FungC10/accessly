@@ -1,8 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { RoomInput } from '@/lib/validation'
-import { Role } from '@prisma/client'
-import { assertRole } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +13,7 @@ export async function GET(request: Request) {
   try {
     const session = await auth()
     if (!session?.user) {
+      console.error('GET /api/chat/rooms - No session or user')
       return Response.json({
         ok: false,
         code: 'UNAUTHORIZED',
@@ -22,18 +21,82 @@ export async function GET(request: Request) {
       }, { status: 401 })
     }
 
-    // Fetch rooms where user is a member
+    if (!session.user.id) {
+      console.error('GET /api/chat/rooms - Session user missing id:', {
+        user: session.user,
+        email: session.user.email,
+      })
+      return Response.json({
+        ok: false,
+        code: 'UNAUTHORIZED',
+        message: 'User ID not found in session',
+      }, { status: 401 })
+    }
+
+    console.log('GET /api/chat/rooms - Fetching rooms for user:', {
+      sessionUserId: session.user.id,
+      sessionEmail: session.user.email,
+    })
+
+    // Verify the user exists in DB and get their actual ID
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { id: true, email: true },
+    })
+
+    if (!dbUser) {
+      console.error('GET /api/chat/rooms - User not found in database:', session.user.email)
+      return Response.json({
+        ok: false,
+        code: 'USER_NOT_FOUND',
+        message: 'User not found in database',
+      }, { status: 404 })
+    }
+
+    // Use DB user ID (source of truth)
+    const userId = dbUser.id
+    const sessionIdMatches = session.user.id === dbUser.id
+
+    console.log('GET /api/chat/rooms - User lookup:', {
+      sessionUserId: session.user.id,
+      dbUserId: dbUser.id,
+      idMatch: sessionIdMatches,
+      email: session.user.email,
+    })
+
+    if (!sessionIdMatches) {
+      console.warn('⚠️ Session user ID does not match DB user ID! Using DB ID.')
+    }
+
+    // Fetch rooms where user is a member (use DB user ID)
     const memberships = await prisma.roomMember.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId, // Use DB user ID, not session user ID
       },
       include: {
         room: {
           select: {
             id: true,
             name: true,
+            title: true,
+            description: true,
+            tags: true,
+            type: true,
             isPrivate: true,
             createdAt: true,
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+            _count: {
+              select: {
+                members: true,
+                messages: true,
+              },
+            },
           },
         },
       },
@@ -44,10 +107,17 @@ export async function GET(request: Request) {
       },
     })
 
-    const rooms = memberships.map((m) => m.room)
+    const rooms = memberships.map((m) => ({
+      ...m.room,
+      role: m.role,
+    }))
+
+    console.log('GET /api/chat/rooms - Found', rooms.length, 'rooms for user', session.user.id)
 
     return Response.json({
       ok: true,
+      code: 'SUCCESS',
+      message: 'Rooms retrieved successfully',
       data: {
         rooms,
       },
@@ -64,7 +134,8 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/chat/rooms
- * Create a new room (admin only)
+ * Create a new room (any authenticated user)
+ * If type=PRIVATE, creator becomes OWNER
  */
 export async function POST(request: Request) {
   try {
@@ -75,17 +146,6 @@ export async function POST(request: Request) {
         code: 'UNAUTHORIZED',
         message: 'Unauthorized',
       }, { status: 401 })
-    }
-
-    // Only admins can create rooms
-    try {
-      assertRole(session, Role.ADMIN)
-    } catch (error) {
-      return Response.json({
-        ok: false,
-        code: 'FORBIDDEN',
-        message: 'Only admins can create rooms',
-      }, { status: 403 })
     }
 
     const body = await request.json()
@@ -114,25 +174,45 @@ export async function POST(request: Request) {
       }, { status: 409 })
     }
 
+    // Determine room role: OWNER if PRIVATE, MEMBER if PUBLIC
+    const creatorRole = validated.data.type === 'PRIVATE' ? 'OWNER' : 'MEMBER'
+
     // Create room
     const room = await prisma.room.create({
       data: {
         name: validated.data.name,
-        isPrivate: validated.data.isPrivate,
+        title: validated.data.title,
+        description: validated.data.description,
+        tags: validated.data.tags,
+        type: validated.data.type,
+        isPrivate: validated.data.isPrivate || validated.data.type === 'PRIVATE',
+        creatorId: session.user.id,
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
       },
     })
 
-    // Add creator as owner
+    // Add creator as member (OWNER for PRIVATE, MEMBER for PUBLIC)
     await prisma.roomMember.create({
       data: {
         userId: session.user.id,
         roomId: room.id,
-        role: 'OWNER',
+        role: creatorRole,
       },
     })
 
     return Response.json({
       ok: true,
+      code: 'ROOM_CREATED',
+      message: 'Room created successfully',
       data: {
         room,
       },
