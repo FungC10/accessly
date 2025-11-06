@@ -20,8 +20,23 @@ export async function GET() {
   // Check database - never throw
   try {
     const { prisma } = await import('@/lib/prisma')
+    const { env } = await import('@/lib/env')
+    
     await prisma.$queryRaw`SELECT 1`
     out.db = 'up'
+    
+    // Include database connection info (without credentials)
+    try {
+      const dbUrl = env.DATABASE_URL
+      const url = new URL(dbUrl)
+      out.dbInfo = {
+        host: url.hostname,
+        port: url.port || '5432',
+        database: url.pathname.slice(1),
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
   } catch (e) {
     out.db = 'down'
     out.ok = false
