@@ -72,13 +72,16 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 
 ### Technical Features
 - **Type Safety**: Full TypeScript with Zod validation
-- **State Management**: Zustand for efficient client-side state management
+- **State Management**: Zustand with persist middleware for resilient state (survives tab switches, refreshes, OS purges)
+- **Server/Client Architecture**: Optimal Next.js App Router patterns (server components for data, client for interactivity)
+- **State Persistence**: Chat messages, scroll positions, and room cache persist to localStorage
+- **No Page Refreshes**: Clean navigation without full page reloads, even on tab switches
 - **Testing**: Comprehensive test suite with Vitest
 - **Docker Support**: Multi-stage builds with docker-compose
 - **Horizontal Scaling**: Redis adapter for Socket.io (optional)
 - **Graceful Shutdown**: Proper cleanup of connections and resources
 - **Performance**: Optimized rendering with scroll restoration and message caching
-- **User Experience**: Instant scroll positioning, flash-free transitions, responsive design
+- **User Experience**: Instant scroll positioning, flash-free transitions, responsive design, resilient to browser events
 
 ## Tech Stack
 
@@ -88,7 +91,7 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 - **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth (Auth.js) v5
 - **Realtime**: Socket.io with optional Redis adapter
-- **State Management**: Zustand
+- **State Management**: Zustand with persist middleware (localStorage)
 - **Validation**: Zod
 - **Testing**: Vitest + Testing Library
 - **Password Hashing**: bcryptjs
@@ -266,7 +269,9 @@ src/
 │   │   └── status/         # Health check endpoint
 │   ├── (auth)/            # Auth pages (sign-in, error)
 │   ├── page.tsx           # Forum-style home page (room discovery)
-│   ├── chat/              # Chat interface (client-side)
+│   ├── chat/              # Chat interface
+│   │   ├── page.tsx       # Server component (reads searchParams)
+│   │   └── ChatPageClient.tsx # Client component (interactive logic)
 │   ├── admin/             # Admin panel (SSR, ADMIN only)
 │   └── status/            # Health check page
 ├── components/            # React components
@@ -372,18 +377,22 @@ See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
 
 ## Chat Features
 
-### Message Caching
-- Messages are cached per room using Zustand
+### Message Caching & State Persistence
+- Messages are cached per room using Zustand with persist middleware
+- **Persistent Storage**: Chat state (messages, scroll positions, cursors) saved to localStorage
+- **Resilient to Browser Events**: State survives tab switches, page refreshes, and OS tab purges
 - Switching rooms is instant when messages are already cached
 - Only fetches new messages since last visit
 - Empty rooms are cached to prevent unnecessary refetches
+- **No Data Loss**: Unsent messages and scroll positions persist across sessions
 
 ### Scroll Position
-- Scroll position is remembered for each room
-- Returns to exact previous position when switching back
+- Scroll position is remembered for each room and persisted to localStorage
+- Returns to exact previous position when switching back (even after browser restart)
 - No flash or visual jumps during room navigation
 - Instant scroll to bottom on first visit (no animation, hidden during scroll)
 - Container visibility managed to prevent flashes
+- **Tab Switch Resilient**: Scroll position preserved when switching browser tabs
 
 ### Pagination
 - Load older messages with anchored scroll (preserves viewport)
@@ -459,8 +468,31 @@ pnpm check:ssg        # Check SSG safety
 1. **After Login** → Redirects to home page (forum) (`/`)
 2. **Home Page** → Forum-style room discovery and browsing
 3. **Click Room Card** → Navigates to `/chat?room={roomId}` (auto-joins if public)
-4. **Chat Page** → Shows only joined rooms, full chat interface
-5. **Discover Button** → Links back to home page for finding new rooms
+4. **Chat Page** → Server component reads URL params, passes to client component
+5. **Chat Interface** → Shows only joined rooms, full chat interface with persistent state
+6. **Discover Button** → Links back to home page for finding new rooms
+
+## Architecture Improvements
+
+### Server/Client Component Split
+- **`/chat/page.tsx`**: Server component that reads `searchParams` synchronously
+- **`/chat/ChatPageClient.tsx`**: Client component with all interactive logic
+- **Benefits**: 
+  - No Promise-based searchParams handling in client
+  - Prevents unnecessary re-mounts on tab switches/resizes
+  - Cleaner separation of concerns
+
+### State Persistence
+- **Zustand Persist Middleware**: All chat state persisted to localStorage
+- **Survives**: Tab switches, page refreshes, browser restarts, OS tab purges
+- **Persisted Data**: Messages, scroll positions, pagination cursors, last fetched timestamps
+- **Storage Key**: `accessly-chat-store`
+
+### Performance Optimizations
+- **No `router.refresh()` calls**: All navigation uses `router.push()` with URL params
+- **Optimized useEffect dependencies**: Depend on `status` instead of entire `session` object
+- **Reduced re-renders**: Client component tree doesn't remount on benign changes
+- **Stable state**: Zustand persist prevents state loss during browser events
 
 ## License
 
