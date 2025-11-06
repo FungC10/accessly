@@ -91,21 +91,22 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
     currentRoomIdRef.current = roomId
   }, [roomId])
 
-  // 2) Save the previous room's scrollTop when roomId changes (only if initialised)
-  useEffect(() => {
-    const el = messagesContainerRef.current
-    if (
-      el &&
-      prevRoomIdRef.current &&
-      prevRoomIdRef.current !== roomId &&
-      hasInitialisedRef.current // <- don't save if not initialised
-    ) {
-      setRoom(prevRoomIdRef.current, { scrollTop: el.scrollTop })
+  // 1) CRITICAL: Save previous room's scroll BEFORE roomId changes
+  // This must run BEFORE the restore useLayoutEffect to prevent race conditions
+  useLayoutEffect(() => {
+    // Save scroll position of previous room BEFORE switching
+    if (prevRoomIdRef.current && prevRoomIdRef.current !== roomId) {
+      const el = messagesContainerRef.current
+      if (el && hasInitialisedRef.current) {
+        // Save the scroll position of the previous room
+        const scrollTop = el.scrollTop
+        setRoom(prevRoomIdRef.current, { scrollTop })
+        console.log('💾 Saved scroll for previous room:', prevRoomIdRef.current, 'scrollTop:', scrollTop)
+      }
     }
-    prevRoomIdRef.current = roomId
   }, [roomId, setRoom])
 
-  // 4.1 Save scrollTop when unmounting or switching away (only if initialised)
+  // 2) Save scrollTop when unmounting (cleanup)
   useEffect(() => {
     return () => {
       const el = messagesContainerRef.current
@@ -128,9 +129,20 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
       return
     }
 
+    // Save previous room's scroll one more time (safety net) BEFORE updating prevRoomIdRef
+    const previousRoomId = prevRoomIdRef.current
+    if (previousRoomId && previousRoomId !== roomId && hasInitialisedRef.current) {
+      const scrollTop = el.scrollTop
+      setRoom(previousRoomId, { scrollTop })
+      console.log('💾 Safety net: Saved scroll for previous room:', previousRoomId, 'scrollTop:', scrollTop)
+    }
+
     // Reset initial fetch tracking when room changes
     isInitialFetchingRef.current = false
     hasInitialisedRef.current = false
+
+    // NOTE: Don't update prevRoomIdRef here - it will be updated after restore completes
+    // This ensures the save useLayoutEffect can still detect the room change
 
     // If room exists in cache (even if empty), render immediately (no loader)
     if (room) {
@@ -168,8 +180,9 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
               setIsRestoringScroll(false)
               isRestoringScrollRef.current = false
               hasInitialisedRef.current = true
-              // Update prevRoomIdRef after restore completes
+              // Update prevRoomIdRef after restore completes - this marks the room as "current"
               prevRoomIdRef.current = roomId
+              console.log('✅ Restored scroll for room:', roomId, 'scrollTop:', savedScroll)
             }
           })
         })
@@ -197,6 +210,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
               hasInitialisedRef.current = true
               // Update prevRoomIdRef after restore completes
               prevRoomIdRef.current = roomId
+              console.log('✅ First visit: Scrolled to bottom for room:', roomId, 'scrollTop:', box.scrollTop)
             })
           })
         } else {
@@ -208,6 +222,7 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
           hasInitialisedRef.current = true
           // Update prevRoomIdRef after restore completes
           prevRoomIdRef.current = roomId
+          console.log('✅ Empty room: Set scrollTop to 0 for room:', roomId)
         }
       }
     } else {
@@ -453,6 +468,8 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
             setIsRestoringScroll(false)
             isRestoringScrollRef.current = false
             hasInitialisedRef.current = true
+            // Update prevRoomIdRef after initial fetch completes
+            prevRoomIdRef.current = roomId
             onMessagesLoaded?.()
             
             // Optional: immediately poll for any very-new messages
