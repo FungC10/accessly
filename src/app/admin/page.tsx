@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Role } from '@prisma/client'
 import { CreateRoomForm } from '@/components/CreateRoomForm'
-// Role is an enum from Prisma - should be available after prisma generate
+import { AdminPanel } from '@/components/AdminPanel'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -25,43 +25,8 @@ export default async function AdminPage() {
     redirect('/dashboard')
   }
 
-  // Fetch admin data
+  // Fetch stats
   const { prisma } = await import('@/lib/prisma')
-  const users = await prisma.user.findMany({
-    take: 10,
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      createdAt: true,
-      _count: {
-        select: {
-          messages: true,
-          memberships: true,
-        },
-      },
-    },
-  })
-
-  const rooms = await prisma.room.findMany({
-    take: 20,
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      isPrivate: true,
-      createdAt: true,
-      _count: {
-        select: {
-          members: true,
-          messages: true,
-        },
-      },
-    },
-  })
-
   const totalUsers = await prisma.user.count()
   const totalMessages = await prisma.message.count()
   const totalRooms = await prisma.room.count()
@@ -106,89 +71,8 @@ export default async function AdminPage() {
           <CreateRoomForm />
         </div>
 
-        {/* Rooms List */}
-        <div className="bg-white/10 backdrop-blur border border-slate-700 rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">All Rooms</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left py-2 px-4 text-slate-400">Name</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Type</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Members</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Messages</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rooms.map((room) => (
-                  <tr key={room.id} className="border-b border-slate-800/50">
-                    <td className="py-2 px-4">{room.name}</td>
-                    <td className="py-2 px-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded ${
-                          room.isPrivate
-                            ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                            : 'bg-green-500/20 text-green-300 border border-green-500/30'
-                        }`}
-                      >
-                        {room.isPrivate ? 'Private' : 'Public'}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4">{room._count.members}</td>
-                    <td className="py-2 px-4">{room._count.messages}</td>
-                    <td className="py-2 px-4 text-sm text-slate-400">
-                      {new Date(room.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* User List */}
-        <div className="bg-white/10 backdrop-blur border border-slate-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Recent Users</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left py-2 px-4 text-slate-400">Email</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Name</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Role</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Messages</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Rooms</th>
-                  <th className="text-left py-2 px-4 text-slate-400">Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b border-slate-800/50">
-                    <td className="py-2 px-4">{user.email || 'N/A'}</td>
-                    <td className="py-2 px-4">{user.name || 'N/A'}</td>
-                    <td className="py-2 px-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded ${
-                          user.role === 'ADMIN'
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            : 'bg-slate-700/50 text-slate-300'
-                        }`}
-                      >
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4">{user._count.messages}</td>
-                    <td className="py-2 px-4">{user._count.memberships}</td>
-                    <td className="py-2 px-4 text-sm text-slate-400">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Admin Panel with Actions */}
+        <AdminPanel />
       </div>
     </div>
   )

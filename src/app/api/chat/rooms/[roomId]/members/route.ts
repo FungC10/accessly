@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ roomId: string }> }
+  { params }: { params: { roomId: string } }
 ) {
   try {
     const session = await auth()
@@ -24,7 +24,7 @@ export async function GET(
       }, { status: 401 })
     }
 
-    const { roomId } = await params
+    const { roomId } = params
 
     // Verify user exists in DB
     const dbUser = await prisma.user.findUnique({
@@ -76,6 +76,7 @@ export async function GET(
       data: {
         members: members.map((m) => ({
           id: m.id,
+          userId: m.userId,
           role: m.role,
           user: m.user,
         })),

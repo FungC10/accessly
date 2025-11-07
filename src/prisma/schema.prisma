@@ -21,6 +21,8 @@ model User {
   messages      Message[]
   memberships   RoomMember[]
   createdRooms  Room[]    @relation("RoomCreator")
+  auditLogs     AuditLog[] @relation("AuditLogs")
+  ban           UserBan?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -115,4 +117,31 @@ enum RoomType {
   PUBLIC
   PRIVATE
   DM
+}
+
+// Audit log for admin/moderation actions
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g., "user.ban", "room.delete", "member.remove"
+  actorId   String   // User who performed the action
+  actor     User     @relation("AuditLogs", fields: [actorId], references: [id], onDelete: Cascade)
+  targetType String? // "user", "room", "member", etc.
+  targetId   String? // ID of the target (userId, roomId, etc.)
+  metadata   Json?    // Additional context (reason, old values, etc.)
+  createdAt  DateTime @default(now())
+  
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// User bans (soft delete via flag)
+model UserBan {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason    String?
+  bannedBy  String   // Admin user ID
+  bannedAt  DateTime @default(now())
+  expiresAt DateTime? // Optional expiration
 }

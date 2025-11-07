@@ -78,6 +78,25 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
         .map((t) => t.trim())
         .filter((t) => t.length > 0)
 
+      // Use settings endpoint for tags/type if user is mod/owner
+      const canEditSettings = roomDetails?.userRole === RoomRole.OWNER || roomDetails?.userRole === RoomRole.MODERATOR
+      
+      if (canEditSettings) {
+        // Update via settings endpoint (for tags/type)
+        const settingsResponse = await fetch(`/api/chat/rooms/${roomId}/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ tags }),
+        })
+        
+        if (!settingsResponse.ok) {
+          const settingsData = await settingsResponse.json()
+          throw new Error(settingsData.message || 'Failed to update settings')
+        }
+      }
+
+      // Update title/description via main room endpoint
       const response = await fetch(`/api/chat/rooms/${roomId}`, {
         method: 'PATCH',
         headers: {
@@ -86,7 +105,6 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
         body: JSON.stringify({
           title: editForm.title,
           description: editForm.description || null,
-          tags,
         }),
       })
 
@@ -97,9 +115,9 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       } else {
         alert(data.message || 'Failed to update room')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating room:', err)
-      alert('Failed to update room')
+      alert(err.message || 'Failed to update room')
     }
   }
 
@@ -380,11 +398,12 @@ function MembersList({
   }, [roomId])
 
   const handleRemoveMember = async (userId: string) => {
-    if (!confirm('Remove this member?')) return
+    if (!confirm('Remove this member from the room?')) return
 
     try {
-      const response = await fetch(`/api/chat/rooms/${roomId}/members?userId=${encodeURIComponent(userId)}`, {
+      const response = await fetch(`/api/chat/rooms/${roomId}/members/${userId}`, {
         method: 'DELETE',
+        credentials: 'include',
       })
       const data = await response.json()
       if (data.ok) {
@@ -399,7 +418,33 @@ function MembersList({
     }
   }
 
+  const handleTransferOwnership = async (userId: string) => {
+    if (!confirm('Transfer room ownership? You will become a moderator.')) return
+
+    try {
+      const response = await fetch(`/api/chat/rooms/${roomId}/ownership`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ newOwnerId: userId }),
+      })
+
+      const data = await response.json()
+      if (data.ok) {
+        fetchMembers()
+        onMemberRemoved() // Refresh room details
+        alert('Ownership transferred successfully')
+      } else {
+        alert(data.message || 'Failed to transfer ownership')
+      }
+    } catch (err) {
+      console.error('Error transferring ownership:', err)
+      alert('Failed to transfer ownership')
+    }
+  }
+
   const canRemove = userRole === RoomRole.OWNER || userRole === RoomRole.MODERATOR
+  const canTransferOwnership = userRole === RoomRole.OWNER
 
   const handleMessageUser = async (userId: string) => {
     if (!session?.user?.email) {
@@ -506,10 +551,20 @@ function MembersList({
                         {messagingUserId === member.user.id ? '...' : '💬'}
                       </button>
                     )}
+                    {canTransferOwnership && member.role !== RoomRole.OWNER && !isCurrentUser && (
+                      <button
+                        onClick={() => handleTransferOwnership(member.user.id)}
+                        className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded"
+                        title="Transfer ownership"
+                      >
+                        Make Owner
+                      </button>
+                    )}
                     {canRemove && member.role !== RoomRole.OWNER && !isCurrentUser && (
                       <button
                         onClick={() => handleRemoveMember(member.user.id)}
                         className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded"
+                        title="Remove member"
                       >
                         Remove
                       </button>
