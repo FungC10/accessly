@@ -226,6 +226,43 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     }
   }
 
+  const handleExport = async () => {
+    const format = prompt('Export format: json, html, or pdf?', 'json')
+    if (!format || !['json', 'html', 'pdf'].includes(format.toLowerCase())) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/export?roomId=${roomId}&format=${format.toLowerCase()}`)
+      
+      if (!response.ok) {
+        const data = await response.json()
+        alert(data.message || 'Failed to export room')
+        return
+      }
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition')
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+        : `room-${roomId}-${Date.now()}.${format}`
+
+      // Download file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error exporting room:', err)
+      alert('Failed to export room')
+    }
+  }
+
   if (isLoading || !roomDetails) {
     return (
       <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
@@ -336,6 +373,13 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
               ➕
             </button>
           )}
+          <button
+            onClick={handleExport}
+            className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
+            title="Export room"
+          >
+            📥 Export
+          </button>
           <button
             onClick={() => {
               console.log('Members button clicked, toggling showMembers:', !showMembers)
