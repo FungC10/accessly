@@ -7,6 +7,8 @@ export type AuditAction =
   | 'member.remove'
   | 'ownership.transfer'
   | 'room.edit'
+  | 'message.delete'
+  | 'ticket.status.change'
 
 export interface AuditMetadata {
   reason?: string

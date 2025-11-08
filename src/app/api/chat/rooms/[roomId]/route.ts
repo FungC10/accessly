@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getMembership } from '@/lib/rbac'
+import { logAction } from '@/lib/audit'
 import { RoomRole } from '@prisma/client'
 
 export const runtime = 'nodejs'
@@ -246,6 +247,16 @@ export async function PATCH(
     const body = await request.json()
     const { title, description, tags } = body
 
+    // Get current room data for diff
+    const currentRoom = await prisma.room.findUnique({
+      where: { id: roomId },
+      select: {
+        title: true,
+        description: true,
+        tags: true,
+      },
+    })
+
     // Update room
     const updatedRoom = await prisma.room.update({
       where: { id: roomId },
@@ -264,6 +275,24 @@ export async function PATCH(
         isPrivate: true,
       },
     })
+
+    // Log audit action with diff
+    if (currentRoom) {
+      const diff: any = {}
+      if (title !== undefined && title !== currentRoom.title) {
+        diff.title = { old: currentRoom.title, new: title }
+      }
+      if (description !== undefined && description !== currentRoom.description) {
+        diff.description = { old: currentRoom.description, new: description }
+      }
+      if (tags !== undefined && JSON.stringify(tags) !== JSON.stringify(currentRoom.tags)) {
+        diff.tags = { old: currentRoom.tags, new: tags }
+      }
+
+      if (Object.keys(diff).length > 0) {
+        await logAction('room.edit', dbUser.id, 'room', roomId, diff)
+      }
+    }
 
     return Response.json({
       ok: true,

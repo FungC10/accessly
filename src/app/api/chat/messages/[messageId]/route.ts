@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getIO } from '@/lib/io'
+import { logAction } from '@/lib/audit'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -221,6 +222,12 @@ export async function DELETE(
         deletedAt: new Date(),
         content: '[Message deleted]', // Replace content
       },
+    })
+
+    // Log audit action
+    await logAction('message.delete', dbUser.id, 'message', messageId, {
+      roomId: message.roomId,
+      originalContent: message.content.substring(0, 100), // First 100 chars
     })
 
     // Emit socket event

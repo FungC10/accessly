@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Role, TicketStatus } from '@prisma/client'
+import { logAction } from '@/lib/audit'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -59,7 +60,7 @@ export async function PATCH(
     // Verify ticket exists and is a TICKET type
     const ticket = await prisma.room.findUnique({
       where: { id: ticketId },
-      select: { type: true },
+      select: { type: true, status: true, title: true },
     })
 
     if (!ticket || ticket.type !== 'TICKET') {
@@ -69,6 +70,8 @@ export async function PATCH(
         message: 'Ticket not found',
       }, { status: 404 })
     }
+
+    const oldStatus = ticket.status
 
     // Update status
     const updated = await prisma.room.update({
@@ -80,6 +83,13 @@ export async function PATCH(
         id: true,
         status: true,
       },
+    })
+
+    // Log audit action
+    await logAction('ticket.status.change', dbUser.id, 'room', ticketId, {
+      oldStatus,
+      newStatus: updated.status,
+      ticketTitle: ticket.title,
     })
 
     return Response.json({
