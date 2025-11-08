@@ -139,7 +139,9 @@ export default async function Home({
       break
   }
 
-  const discoverRooms = await prisma.room.findMany({
+  let discoverRooms: any[] = []
+  try {
+    discoverRooms = await prisma.room.findMany({
     where,
     take: limit + 1,
     orderBy,
