@@ -94,8 +94,12 @@ export default async function Home({
 
   const myRooms = myMemberships.map((m) => ({
     ...m.room,
+    createdAt: m.room.createdAt.toISOString(),
     role: m.role,
-    lastMessage: m.room.messages[0] || null,
+    lastMessage: m.room.messages[0] ? {
+      ...m.room.messages[0],
+      createdAt: m.room.messages[0].createdAt.toISOString(),
+    } : null,
   }))
 
   // Fetch "Discover" - public rooms with filters
@@ -190,7 +194,11 @@ export default async function Home({
 
   const discoverRoomsWithLastMessage = discoverRoomsToReturn.map((room) => ({
     ...room,
-    lastMessage: room.messages[0] || null,
+    createdAt: room.createdAt.toISOString(),
+    lastMessage: room.messages[0] ? {
+      ...room.messages[0],
+      createdAt: room.messages[0].createdAt.toISOString(),
+    } : null,
   }))
 
   // Get all unique tags from public rooms for filter chips
