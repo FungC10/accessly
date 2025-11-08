@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { checkSupportFormRate } from '@/lib/rateLimit'
 import { z } from 'zod'
-import { Role } from '@prisma/client'
+import { Role, RoomType, TicketStatus, RoomRole } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
