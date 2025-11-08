@@ -12,32 +12,33 @@ export default async function Home({
 }: {
   searchParams: Promise<{ q?: string; tag?: string; sort?: string; cursor?: string }>
 }) {
-  const session = await auth()
+  try {
+    const session = await auth()
 
-  // If not logged in, redirect to sign-in
-  if (!session?.user) {
-    redirect('/sign-in?callbackUrl=/')
-  }
+    // If not logged in, redirect to sign-in
+    if (!session?.user) {
+      redirect('/sign-in?callbackUrl=/')
+    }
 
-  // Verify user exists in DB
-  const dbUser = await prisma.user.findUnique({
-    where: { email: session.user.email || '' },
-    select: { id: true },
-  })
+    // Verify user exists in DB
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { id: true },
+    })
 
-  if (!dbUser) {
-    redirect('/sign-in?callbackUrl=/')
-  }
+    if (!dbUser) {
+      redirect('/sign-in?callbackUrl=/')
+    }
 
-  const params = await searchParams
-  const q = params.q || ''
-  const tag = params.tag || ''
-  const sort = params.sort || 'active'
-  const cursor = params.cursor || null
-  const limit = 20
+    const params = await searchParams
+    const q = params.q || ''
+    const tag = params.tag || ''
+    const sort = params.sort || 'active'
+    const cursor = params.cursor || null
+    const limit = 20
 
-  // Fetch "My Rooms" - rooms user is a member of
-  const myMemberships = await prisma.roomMember.findMany({
+    // Fetch "My Rooms" - rooms user is a member of
+    const myMemberships = await prisma.roomMember.findMany({
     where: { userId: dbUser.id },
     include: {
       room: {
@@ -203,18 +204,52 @@ export default async function Home({
     )
   ).sort()
 
-  return (
-    <HomePageClient
-      initialMyRooms={myRooms}
-      initialDiscoverRooms={discoverRoomsWithLastMessage}
-      initialCursor={nextCursor}
-      initialHasMore={hasMore}
-      availableTags={allTags}
-      initialFilters={{
-        q,
-        tag,
-        sort,
-      }}
-    />
-  )
+    return (
+      <HomePageClient
+        initialMyRooms={myRooms}
+        initialDiscoverRooms={discoverRoomsWithLastMessage}
+        initialCursor={nextCursor}
+        initialHasMore={hasMore}
+        availableTags={allTags}
+        initialFilters={{
+          q,
+          tag,
+          sort,
+        }}
+      />
+    )
+  } catch (error: any) {
+    console.error('Error in Home page:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack,
+    })
+    
+    // Return error page
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+        <div className="max-w-md text-center space-y-4">
+          <h1 className="text-2xl font-bold text-red-400">Internal Server Error</h1>
+          <p className="text-slate-400">
+            {error.message || 'An unexpected error occurred'}
+          </p>
+          {error.code && (
+            <p className="text-sm text-slate-500">
+              Error code: {error.code}
+            </p>
+          )}
+          <div className="mt-6">
+            <a
+              href="/"
+              className="inline-block px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
+            >
+              Go Home
+            </a>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
