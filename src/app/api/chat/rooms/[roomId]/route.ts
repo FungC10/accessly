@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getMembership } from '@/lib/rbac'
 import { logAction } from '@/lib/audit'
+import { RoomType } from '@prisma/client'
 import { RoomRole } from '@prisma/client'
 
 export const runtime = 'nodejs'
@@ -110,7 +111,7 @@ export async function GET(
     let lastResponder = null
     let averageResponseTime = null
 
-    if (room.type === 'TICKET') {
+    if (room.type === RoomType.TICKET) {
       // Get all messages ordered by creation time
       const messages = await prisma.message.findMany({
         where: { roomId },
