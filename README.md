@@ -1,6 +1,6 @@
 # Accessly
 
-Forum-style realtime chat application with role-based authentication, room management, and instant message delivery.
+Enterprise-grade realtime chat and helpdesk platform with role-based authentication, threaded conversations, ticket support, full-text search, observability dashboard, and comprehensive audit logging.
 
 Built with Next.js 15, TypeScript, Tailwind CSS, NextAuth, Prisma, PostgreSQL, and Socket.io.
 
@@ -34,10 +34,17 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 
 ### Chat System
 - **Realtime Chat**: Socket.io-powered chat with instant message delivery
+- **Threading**: Reply to messages with nested thread structure
+  - Hierarchical message display with parent-child relationships
+  - Expandable/collapsible threads
+  - Deep-linking to specific threads via URL parameters
+  - Thread persistence (expanded state saved)
+  - Reply count indicators
 - **Room Types**: 
   - Public rooms (anyone can discover and join)
   - Private rooms (invite-only, hidden from discovery)
-  - Direct Messages (DM) between two users
+  - Direct Messages (DM) between two users (no duplicates, auto-created)
+  - Support Tickets (TICKET) with status tracking (OPEN/WAITING/RESOLVED)
 - **Room Management**:
   - Create rooms with title, description, tags, and type
   - Edit room metadata (OWNER only)
@@ -45,13 +52,24 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
   - Remove members (OWNER/MODERATOR)
   - View member list with roles
 - **Room Header**: 
-  - Visibility badges (Public/Private/DM)
+  - Full metadata display: title, description, tags, type badge (PUBLIC/PRIVATE/DM/TICKET)
+  - Status badge for tickets (OPEN/WAITING/RESOLVED)
+  - Inline editing for OWNER (title, description, tags)
+  - Ticket-specific info: assigned owner, last responder, average response time
+  - "Assign to..." button for ticket reassignment (admin only)
+  - Visibility badges (Public/Private/DM/Ticket)
   - Tag display
   - User role badge
   - Edit button (OWNER)
-  - Invite button (OWNER/MODERATOR)
+  - Invite button (OWNER/MODERATOR, hidden for DM/TICKET)
   - Members button with count
+- **Message Actions**:
+  - Edit own messages (within 10 minutes)
+  - Delete own messages (soft delete)
+  - Emoji reactions (Slack/Discord-style with top-3 display + overflow)
+  - Single active emoji per user (toggle behavior)
 - **Presence Indicators**: Shows who's online in each room
+- **Typing Indicators**: Real-time typing status broadcast
 - **Message History**: Cursor-based pagination for efficient message loading
 - **Smart Caching**: Per-room message caching with Zustand for instant room switching
 - **Scroll Position Memory**: Remembers exact scroll position when switching between rooms
@@ -59,7 +77,77 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 - **Incremental Loading**: Only fetches new messages since last visit for better performance
 - **Anchored Scroll**: Preserves scroll position when loading older messages (pagination)
 - **Auto-Join**: Automatically joins public rooms when navigating from discover page
-- **Rate Limiting**: Prevents message spam
+- **Rate Limiting**: 
+  - Message rate limiting: max 3 messages per 5 seconds per user
+  - Support form rate limiting: max 3 submissions per 5 minutes per IP
+  - Hard limit enforced on backend (in-memory, ready for Redis upgrade)
+
+### Support Ticket System
+- **Public Support Form**: `/support` page (no authentication required)
+  - Submit tickets with name, email, subject, and message
+  - Automatic ticket creation with OPEN status
+  - First admin assigned as OWNER
+  - Rate limiting to prevent spam
+- **Ticket Management**: `/tickets` page (admin only)
+  - View all support tickets
+  - Filter by status (OPEN/WAITING/RESOLVED)
+  - Update ticket status
+  - Assign tickets to admins
+  - Thread structure: first message is main issue, replies are threads
+- **Ticket Metrics**: 
+  - Last responder tracking
+  - Average response time calculation
+  - Assigned owner display
+
+### Full-Text Search
+- **PostgreSQL tsvector**: Fast full-text search with GIN indexes
+- **Global Search Bar**: Available in navbar for quick access
+- **Search Page**: `/search` with comprehensive results
+- **Message Search**: 
+  - Full-text search across message content
+  - Message snippets with highlighting
+  - Parent thread context for replies
+  - Relevance scoring (ts_rank)
+- **Room Search**: Full-text search across room titles, descriptions, and tags
+- **Complex Query Syntax**:
+  - `from:@alice` - Filter by user
+  - `tag:billing` - Filter by tag
+  - `before:2024-01-01` - Filter by date
+  - `after:2024-01-01` - Filter by date
+- **Deep-Linking**: Click results to jump to exact thread position
+
+### Observability Dashboard
+- **Admin Telemetry**: `/admin/telemetry` (admin only)
+- **Real-Time Metrics**:
+  - Messages per room per minute
+  - Active socket connections
+  - Socket latency (p50/p95)
+  - Node.js process CPU and memory usage
+  - Top 5 active rooms
+  - Top 5 slowest Prisma queries (via middleware)
+- **Visualizations**: 
+  - Time series charts (5-minute history)
+  - Bar charts for active rooms
+  - Auto-refresh every 5 seconds
+- **Clickable Rooms**: Navigate directly to chat threads from dashboard
+
+### Audit Log System
+- **Comprehensive Audit Trail**: `/admin/audit` (admin only)
+- **Tracked Actions**:
+  - Message deletion
+  - Member removal
+  - Ticket status changes
+  - Room metadata edits
+  - Ownership transfers
+  - User bans/unbans
+  - Room deletions
+- **Audit Log Features**:
+  - Time, user, action, target, and JSON diff
+  - Filterable by action, user, target type, target ID
+  - Cursor-based pagination
+  - Expandable JSON metadata viewer
+  - Color-coded action types
+  - Clickable room links
 
 ### Dashboard & Admin
 - **User Dashboard**: Personal stats (messages sent, rooms joined)
@@ -68,20 +156,27 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
   - User management table
   - Room creation and management
   - System statistics
+  - Observability dashboard
+  - Audit log viewer
 - **Role-Based UI**: Different views for USER vs ADMIN
 
 ### Technical Features
 - **Type Safety**: Full TypeScript with Zod validation
 - **State Management**: Zustand with persist middleware for resilient state (survives tab switches, refreshes, OS purges)
 - **Server/Client Architecture**: Optimal Next.js App Router patterns (server components for data, client for interactivity)
-- **State Persistence**: Chat messages, scroll positions, and room cache persist to localStorage
+- **State Persistence**: Chat messages, scroll positions, room cache, and expanded threads persist to localStorage
 - **No Page Refreshes**: Clean navigation without full page reloads, even on tab switches
 - **Testing**: Comprehensive test suite with Vitest
+  - Unit tests for core functionality
+  - API endpoint tests
+  - Integration tests for threading, tickets, search, audit logs
 - **Docker Support**: Multi-stage builds with docker-compose
 - **Horizontal Scaling**: Redis adapter for Socket.io (optional)
 - **Graceful Shutdown**: Proper cleanup of connections and resources
 - **Performance**: Optimized rendering with scroll restoration and message caching
 - **User Experience**: Instant scroll positioning, flash-free transitions, responsive design, resilient to browser events
+- **Metrics Collection**: In-memory metrics store for observability (ready for Redis upgrade)
+- **Query Performance**: Prisma middleware tracks slow queries (>100ms)
 
 ## Tech Stack
 
@@ -89,11 +184,13 @@ See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for details.
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL with Prisma ORM
+- **Full-Text Search**: PostgreSQL tsvector with GIN indexes
 - **Authentication**: NextAuth (Auth.js) v5
 - **Realtime**: Socket.io with optional Redis adapter
 - **State Management**: Zustand with persist middleware (localStorage)
 - **Validation**: Zod
 - **Testing**: Vitest + Testing Library
+- **Visualization**: Recharts for observability dashboard
 - **Password Hashing**: bcryptjs
 - **Date Formatting**: date-fns
 
@@ -264,15 +361,31 @@ src/
 │   │   │   │   │   ├── invite/ # Invite users
 │   │   │   │   │   ├── members/ # Member management
 │   │   │   │   │   └── route.ts # Get/update room details
-│   │   │   └── messages/  # Message CRUD
-│   │   ├── users/          # User search (for invites)
-│   │   └── status/         # Health check endpoint
+│   │   │   ├── messages/  # Message CRUD
+│   │   │   │   └── [messageId]/ # Message actions (edit, delete, reactions)
+│   │   │   └── dm/        # Direct message creation
+│   │   ├── support/        # Public support tickets
+│   │   │   └── tickets/   # Ticket creation (no auth)
+│   │   ├── tickets/       # Ticket management (admin)
+│   │   │   └── [ticketId]/ # Ticket operations (status, assign)
+│   │   ├── search/        # Full-text search
+│   │   ├── admin/         # Admin endpoints
+│   │   │   ├── users/     # User management
+│   │   │   ├── telemetry/ # Observability metrics
+│   │   │   └── audit/     # Audit log retrieval
+│   │   ├── users/         # User search (for invites)
+│   │   └── status/        # Health check endpoint
 │   ├── (auth)/            # Auth pages (sign-in, error)
 │   ├── page.tsx           # Forum-style home page (room discovery)
 │   ├── chat/              # Chat interface
 │   │   ├── page.tsx       # Server component (reads searchParams)
 │   │   └── ChatPageClient.tsx # Client component (interactive logic)
+│   ├── support/           # Public support form
+│   ├── search/            # Search results page
+│   ├── tickets/           # Ticket management (admin)
 │   ├── admin/             # Admin panel (SSR, ADMIN only)
+│   │   ├── telemetry/     # Observability dashboard
+│   │   └── audit/         # Audit log viewer
 │   └── status/            # Health check page
 ├── components/            # React components
 │   ├── rooms/            # Room-related components
@@ -281,29 +394,59 @@ src/
 │   │   ├── RoomHeader.tsx     # Room header with badges and actions
 │   │   ├── HomePageClient.tsx # Client-side forum page
 │   │   └── CreateRoomButton.tsx # Create room modal
-│   ├── ChatRoom.tsx       # Chat room component
-│   ├── MessageItem.tsx    # Individual message display
+│   ├── admin/            # Admin components
+│   │   ├── TelemetryDashboard.tsx # Observability dashboard
+│   │   └── AuditLogDashboard.tsx  # Audit log viewer
+│   ├── tickets/          # Ticket components
+│   │   └── TicketsList.tsx # Ticket list with filtering
+│   ├── ChatRoom.tsx       # Chat room component with threading
+│   ├── MessageItem.tsx    # Individual message display with actions
+│   ├── ThreadView.tsx     # Thread replies display
 │   ├── PresenceBar.tsx    # Online users indicator
-│   ├── Navbar.tsx         # Navigation bar
+│   ├── SearchBar.tsx      # Global search bar
+│   ├── SearchResults.tsx  # Search results display
+│   ├── Navbar.tsx         # Navigation bar with search
 │   └── ...
 ├── lib/                   # Utilities
 │   ├── auth.ts            # NextAuth configuration
 │   ├── env.ts             # Environment validation
-│   ├── prisma.ts          # Prisma client singleton
+│   ├── prisma.ts          # Prisma client singleton (with query tracking middleware)
 │   ├── rbac.ts            # Role-based access control
 │   ├── socket.ts          # Socket.io client
 │   ├── validation.ts      # Zod schemas
-│   ├── chatStore.ts       # Zustand store for chat state
+│   ├── chatStore.ts       # Zustand store for chat state (with threading)
 │   ├── scroll.ts          # Scroll utilities (preserve, restore)
-│   └── io.ts              # Socket.io server singleton
+│   ├── io.ts              # Socket.io server singleton
+│   ├── rateLimit.ts       # Rate limiting (messages, support forms)
+│   ├── audit.ts           # Audit logging helpers
+│   ├── search.ts          # Search query parsing and utilities
+│   ├── metrics.ts         # Metrics collection service
+│   └── telemetry.ts       # Telemetry tracking utilities
 ├── data/                  # Seed scripts
 │   ├── seed.ts            # Basic seed (admin + user)
 │   ├── seed-demo.ts       # Realistic demo data
 │   └── diagnose-chat.ts   # Diagnostic tools
 ├── tests/                 # Test files
+│   ├── unit/              # Unit tests
+│   │   ├── audit.test.ts      # Audit logging tests
+│   │   ├── threading.test.ts  # Threading structure tests
+│   │   ├── tickets.test.ts    # Ticket logic tests
+│   │   ├── rateLimit.test.ts  # Rate limiting tests
+│   │   └── ...
+│   ├── api/               # API endpoint tests
+│   │   ├── audit.test.ts           # Audit API tests
+│   │   ├── audit-integration.test.ts # Integration tests
+│   │   ├── threading.test.ts       # Threading API tests
+│   │   ├── tickets.test.ts         # Ticket API tests
+│   │   └── ...
+│   └── components/         # Component tests
 ├── prisma/                # Prisma schema and migrations
+│   └── migrations/        # Database migrations
+│       ├── ..._add_threading/
+│       ├── ..._add_ticket_support/
+│       └── ..._add_fulltext_search/
 └── server/                # Custom Node.js server entry
-    └── index.ts           # HTTP server + Socket.io setup
+    └── index.ts           # HTTP server + Socket.io setup (with telemetry)
 ```
 
 ## API Endpoints
@@ -327,8 +470,32 @@ src/
 - `DELETE /api/chat/rooms/[roomId]/members?userId=...` - Remove member (OWNER/MODERATOR)
 
 ### Messages
-- `GET /api/chat/messages?roomId=...` - Get messages (paginated with cursor/after)
-- `POST /api/chat/messages` - Send message
+- `GET /api/chat/messages?roomId=...` - Get messages (paginated with cursor/after, hierarchical structure)
+- `POST /api/chat/messages` - Send message (supports parentMessageId for threading)
+- `PATCH /api/chat/messages/[messageId]` - Edit message (author only, within 10 minutes)
+- `DELETE /api/chat/messages/[messageId]` - Delete message (author only, soft delete)
+- `POST /api/chat/messages/[messageId]/reactions` - Add/remove emoji reaction
+
+### Direct Messages
+- `POST /api/chat/dm/:userId` - Create or get existing DM room
+
+### Support Tickets
+- `POST /api/support/tickets` - Create support ticket (public, no auth)
+- `GET /api/tickets` - List all tickets (admin only, filterable by status)
+- `PATCH /api/tickets/[ticketId]/status` - Update ticket status (admin only)
+- `POST /api/tickets/[ticketId]/assign` - Assign ticket to admin (admin only)
+
+### Search
+- `POST /api/search` - Full-text search across messages and rooms
+  - Query parsing: supports `from:`, `tag:`, `before:`, `after:` syntax
+  - Returns message snippets with highlighting
+  - Includes parent thread context
+  - Returns relevance scores
+
+### Admin
+- `GET /api/admin/users?role=...` - List users (admin only, filterable by role)
+- `GET /api/admin/telemetry` - Get observability metrics (admin only)
+- `GET /api/admin/audit` - Get audit logs (admin only, filterable)
 
 ### Users
 - `GET /api/users/search?email=...` - Search user by email (for invites)
@@ -354,6 +521,7 @@ See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
 
 ### Home Page (Forum)
 - **My Rooms Section**: Displays rooms you've joined with last message preview
+- **Direct Messages Section**: Shows DM rooms with last message preview
 - **Discover Section**: Browse public rooms with:
   - Search bar (title, description)
   - Tag filter chips
@@ -363,23 +531,73 @@ See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
 - **Create Room**: Modal form accessible from header
 
 ### Chat Page
-- **Sidebar**: List of joined rooms
-- **Chat Area**: Messages with scroll preservation
+- **Sidebar**: List of joined rooms and direct messages
+- **Chat Area**: Messages with threading support
+  - Root messages with reply buttons
+  - Expandable/collapsible threads
+  - Thread view with indentation
+  - Reply count indicators
+  - Deep-linking to specific threads
 - **Room Header**: 
-  - Room title and description
-  - Visibility badge (Public/Private/DM)
+  - Room title and description (editable by OWNER)
+  - Visibility badge (Public/Private/DM/Ticket)
+  - Status badge for tickets (OPEN/WAITING/RESOLVED)
   - Tag badges
   - User role badge
+  - Ticket info: assigned owner, last responder, average response time
   - Edit button (OWNER only)
-  - Invite button (OWNER/MODERATOR)
+  - Assign button (tickets, admin only)
+  - Invite button (OWNER/MODERATOR, hidden for DM/TICKET)
   - Members button
-- **Message Input**: Send messages with realtime delivery
+- **Message Input**: 
+  - Send messages with realtime delivery
+  - Reply to messages (creates thread)
+  - "Replying to..." indicator
+- **Message Actions**:
+  - Edit button (author only, within 10 minutes)
+  - Delete button (author only)
+  - Emoji reaction picker (hover to reveal)
+  - Reaction badges (top-3 + overflow)
+
+### Search Page
+- **Global Search Bar**: Available in navbar
+- **Search Results**: 
+  - Message results with snippets and highlighting
+  - Room results with descriptions
+  - Parent thread context for replies
+  - Clickable results navigate to exact thread position
+- **Complex Query Support**: `from:@alice tag:billing before:2024-01-01`
+
+### Admin Pages
+- **Telemetry Dashboard**: `/admin/telemetry`
+  - Real-time system metrics
+  - Time series charts
+  - Top active rooms
+  - Slow query tracking
+- **Audit Log**: `/admin/audit`
+  - Comprehensive audit trail
+  - Filterable table view
+  - JSON diff viewer
+  - Clickable room links
 
 ## Chat Features
 
+### Threading
+- **Reply System**: Click reply button on any message to start a thread
+- **Hierarchical Structure**: Messages organized as parent-child relationships
+- **Thread Display**: 
+  - Root messages shown with reply count
+  - Expandable/collapsible threads
+  - Indented replies with visual thread line
+  - "Show replies" button for collapsed threads
+- **Thread Persistence**: Expanded thread state saved to localStorage
+- **Deep-Linking**: URL parameters (`?thread=messageId`) auto-expand threads
+- **Real-Time Updates**: New replies auto-expand if thread is already open
+- **Thread Context**: Search results show parent message context
+
 ### Message Caching & State Persistence
 - Messages are cached per room using Zustand with persist middleware
-- **Persistent Storage**: Chat state (messages, scroll positions, cursors) saved to localStorage
+- **Persistent Storage**: Chat state (messages, scroll positions, cursors, expanded threads) saved to localStorage
 - **Resilient to Browser Events**: State survives tab switches, page refreshes, and OS tab purges
 - Switching rooms is instant when messages are already cached
 - Only fetches new messages since last visit
@@ -405,7 +623,8 @@ See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
 ### Room Types
 - **PUBLIC**: Discoverable in forum, anyone can join
 - **PRIVATE**: Hidden from discovery, invite-only
-- **DM**: Direct message between exactly two users
+- **DM**: Direct message between exactly two users (auto-created, no duplicates)
+- **TICKET**: Support ticket with status tracking (OPEN/WAITING/RESOLVED)
 
 ### Room Roles
 - **OWNER**: Created the room, can edit metadata, invite/remove members
@@ -418,9 +637,14 @@ See [docs/scaling.md](./docs/scaling.md) for scaling strategies.
 - **Member Count**: Shows number of members
 - **Last Message Preview**: Shows most recent message snippet with author and time
 - **Creator**: Tracks who created the room
-- **Metadata Editing**: OWNER can update title, description, tags
+- **Metadata Editing**: OWNER can update title, description, tags (with audit logging)
 - **Member Management**: OWNER/MODERATOR can invite and remove members
 - **One-to-One DM Rule**: DMs have exactly two members, prevents duplicates
+- **Ticket Features**:
+  - Status tracking (OPEN/WAITING/RESOLVED)
+  - Admin assignment
+  - Response metrics (last responder, average response time)
+  - Public submission form (no auth required)
 
 ### Room Discovery
 - **Search**: Full-text search across title, name, description
