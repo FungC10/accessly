@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Role, RoomRole, RoomType } from '@prisma/client'
+import { Role, RoomRole } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,7 +55,7 @@ export async function POST(
       select: { type: true },
     })
 
-    if (!ticket || ticket.type !== RoomType.TICKET) {
+    if (!ticket || ticket.type !== 'TICKET') {
       return Response.json({
         ok: false,
         code: 'NOT_FOUND',

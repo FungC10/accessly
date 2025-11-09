@@ -1,0 +1,106 @@
+{
+  "models": {
+    "User": {
+      "requiredFields": ["id", "role", "createdAt", "updatedAt"],
+      "optionalFields": ["name", "email", "emailVerified", "image", "password"],
+      "uniqueFields": ["email"],
+      "defaults": {
+        "role": "USER"
+      },
+      "relations": {
+        "accounts": "Account[]",
+        "sessions": "Session[]",
+        "messages": "Message[]",
+        "memberships": "RoomMember[]",
+        "createdRooms": "Room[]",
+        "auditLogs": "AuditLog[]",
+        "ban": "UserBan?"
+      }
+    },
+    "Room": {
+      "requiredFields": ["id", "name", "title", "isPrivate", "type", "tags", "createdAt", "updatedAt"],
+      "optionalFields": ["description", "status", "creatorId"],
+      "uniqueFields": ["name"],
+      "defaults": {
+        "isPrivate": false,
+        "type": "PUBLIC",
+        "tags": []
+      },
+      "relations": {
+        "messages": "Message[]",
+        "members": "RoomMember[]",
+        "creator": "User?"
+      },
+      "notes": "status is only used when type = TICKET"
+    },
+    "RoomMember": {
+      "requiredFields": ["id", "userId", "roomId", "role"],
+      "optionalFields": [],
+      "uniqueFields": ["userId", "roomId"],
+      "defaults": {
+        "role": "MEMBER"
+      },
+      "relations": {
+        "user": "User",
+        "room": "Room"
+      },
+      "notes": "Users must be RoomMembers before they can send messages"
+    },
+    "Message": {
+      "requiredFields": ["id", "roomId", "userId", "content", "createdAt"],
+      "optionalFields": ["parentMessageId", "editedAt", "deletedAt", "reactions"],
+      "uniqueFields": [],
+      "defaults": {},
+      "relations": {
+        "user": "User",
+        "room": "Room",
+        "parentMessage": "Message?",
+        "replies": "Message[]"
+      },
+      "notes": "parentMessageId creates threading structure"
+    }
+  },
+  "enums": {
+    "Role": ["USER", "ADMIN"],
+    "RoomRole": ["MEMBER", "MODERATOR", "OWNER"],
+    "RoomType": ["PUBLIC", "PRIVATE", "DM", "TICKET"],
+    "TicketStatus": ["OPEN", "WAITING", "RESOLVED"]
+  },
+  "constraints": {
+    "User.email": "unique, but nullable",
+    "Room.name": "unique, required",
+    "RoomMember": "unique [userId, roomId] - one membership per user per room",
+    "Room.status": "only valid when Room.type = TICKET",
+    "Message.parentMessageId": "must reference existing message in same room or be null"
+  },
+  "seedRequirements": {
+    "users": {
+      "mustHave": ["email (unique)", "password (hashed)", "role"],
+      "canHave": ["name", "image (Dicebear URL)"]
+    },
+    "rooms": {
+      "mustHave": ["name (unique)", "title", "type", "tags (array)"],
+      "canHave": ["description", "status (if TICKET)", "creatorId"],
+      "note": "For TICKET rooms, status should be OPEN, WAITING, or RESOLVED"
+    },
+    "roomMembers": {
+      "mustHave": ["userId", "roomId", "role"],
+      "note": "Must create RoomMembers BEFORE creating messages in that room"
+    },
+    "messages": {
+      "mustHave": ["roomId", "userId", "content"],
+      "canHave": ["parentMessageId (for threading)"],
+      "note": "userId must be a RoomMember of the roomId"
+    }
+  },
+  "validationChecks": [
+    "All users must have unique emails",
+    "All rooms must have unique names",
+    "All RoomMembers must reference valid userId and roomId",
+    "All messages must reference valid roomId and userId (where userId is a RoomMember of roomId)",
+    "parentMessageId must reference a message in the same room",
+    "TICKET rooms should have status set",
+    "DM rooms should have exactly 2 members"
+  ]
+}
+

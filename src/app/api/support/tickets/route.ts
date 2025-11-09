@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { checkSupportFormRate } from '@/lib/rateLimit'
 import { z } from 'zod'
-import { Role, RoomType, TicketStatus, RoomRole } from '@prisma/client'
+import { Role } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -96,20 +96,19 @@ export async function POST(request: Request) {
         name: ticketName,
         title: validated.data.subject,
         description: `Support ticket from ${validated.data.name} (${validated.data.email})`,
-        type: RoomType.TICKET,
-        status: TicketStatus.OPEN,
+        type: 'TICKET',
+        status: 'OPEN',
         isPrivate: true,
         creatorId: user.id,
       },
     })
 
     // Add user as MEMBER
-    const { RoomRole } = await import('@prisma/client')
     await prisma.roomMember.create({
       data: {
         userId: user.id,
         roomId: ticketRoom.id,
-        role: RoomRole.MEMBER,
+        role: 'MEMBER',
       },
     })
 
@@ -118,7 +117,7 @@ export async function POST(request: Request) {
       data: {
         userId: admin.id,
         roomId: ticketRoom.id,
-        role: RoomRole.OWNER,
+        role: 'OWNER',
       },
     })
 

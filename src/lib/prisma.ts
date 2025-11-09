@@ -6,15 +6,11 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Force new instance if in development (helps with hot reload)
-const createPrismaClient = () => {
-  return new PrismaClient({
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
     log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   })
-}
-
-export const prisma =
-  globalForPrisma.prisma ?? createPrismaClient()
 
 // Add middleware to track slow queries
 prisma.$use(async (params, next) => {
