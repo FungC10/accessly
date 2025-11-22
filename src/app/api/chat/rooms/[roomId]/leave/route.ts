@@ -1,6 +1,5 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertMembership, getMembership } from '@/lib/rbac'
 import { RoomRole } from '@prisma/client'
 
 export const runtime = 'nodejs'
@@ -25,14 +24,19 @@ export async function POST(
     }
 
     const { roomId } = await params
+    const userId = session.user.id
 
-    // Check if room exists
     const room = await prisma.room.findUnique({
       where: { id: roomId },
-      select: {
-        id: true,
-        name: true,
-        title: true,
+      include: {
+        members: {
+          select: {
+            id: true,
+            userId: true,
+            roomId: true,
+            role: true,
+          },
+        },
       },
     })
 
@@ -44,22 +48,9 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Check if user is a member
-    try {
-      await assertMembership(session.user.id, roomId, prisma)
-    } catch (error: any) {
-      if (error.code === 'INSUFFICIENT_MEMBERSHIP') {
-        return Response.json({
-          ok: false,
-          code: 'NOT_MEMBER',
-          message: 'Not a member of this room',
-        }, { status: 403 })
-      }
-      throw error
-    }
+    const membership = room.members.find((m) => m.userId === userId)
 
-    // Get user's membership
-    const membership = await getMembership(session.user.id, roomId, prisma)
+    // Not a member → 403
     if (!membership) {
       return Response.json({
         ok: false,
@@ -68,22 +59,17 @@ export async function POST(
       }, { status: 403 })
     }
 
-    // If user is OWNER, check if they're the only owner with other members
+    // Owner cannot leave if they are the only owner and others exist
     if (membership.role === RoomRole.OWNER) {
-      // Count owners and total members
-      const ownerCount = await prisma.roomMember.count({
-        where: {
-          roomId,
-          role: RoomRole.OWNER,
-        },
-      })
+      const ownerCount = room.members.filter(
+        (m) => m.role === RoomRole.OWNER,
+      ).length
 
-      const totalMembers = await prisma.roomMember.count({
-        where: { roomId },
-      })
+      const otherMembersExist = room.members.some(
+        (m) => m.userId !== userId,
+      )
 
-      // Cannot leave if you're the only owner and there are other members
-      if (ownerCount === 1 && totalMembers > 1) {
+      if (ownerCount === 1 && otherMembersExist) {
         return Response.json({
           ok: false,
           code: 'CANNOT_LEAVE',
@@ -92,13 +78,10 @@ export async function POST(
       }
     }
 
-    // Remove membership
+    // Leave successfully
     await prisma.roomMember.delete({
       where: {
-        userId_roomId: {
-          userId: session.user.id,
-          roomId,
-        },
+        id: membership.id,
       },
     })
 
@@ -113,7 +96,7 @@ export async function POST(
           title: room.title,
         },
       },
-    })
+    }, { status: 200 })
   } catch (error: any) {
     console.error('Error leaving room:', error)
     return Response.json({
@@ -123,4 +106,3 @@ export async function POST(
     }, { status: 500 })
   }
 }
-

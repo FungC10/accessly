@@ -1,9 +1,41 @@
 import { Role, RoomRole } from '@prisma/client'
 import type { Session } from 'next-auth'
 
+// Role hierarchy – higher number = more power
+const ROLE_RANK: Record<RoomRole, number> = {
+  MEMBER: 1,
+  MODERATOR: 2,
+  OWNER: 3,
+} as const
+
+/**
+ * Check if a role has at least the required role level
+ * @param role - User's role
+ * @param required - Minimum required role
+ * @returns true if role meets or exceeds required level
+ */
+export function hasRoleOrHigher(
+  role: RoomRole | null | undefined,
+  required: RoomRole,
+): boolean {
+  if (!role) return false
+  return ROLE_RANK[role] >= ROLE_RANK[required]
+}
+
+// Errors used by tests & routes
+
+export class NotMemberError extends Error {
+  code = 'NOT_MEMBER' as const
+
+  constructor() {
+    super('NOT_MEMBER') // message tests will see
+    this.name = 'NotMemberError'
+  }
+}
+
 export class InsufficientRoleError extends Error {
-  code = 'INSUFFICIENT_ROLE'
-  status = 403
+  code = 'INSUFFICIENT_ROLE' as const
+  status = 403 as const
 
   constructor(message = 'Insufficient role to access this resource') {
     super(message)
@@ -11,13 +43,25 @@ export class InsufficientRoleError extends Error {
   }
 }
 
+// Legacy error class for backward compatibility
 export class InsufficientMembershipError extends Error {
-  code = 'INSUFFICIENT_MEMBERSHIP'
+  code = 'INSUFFICIENT_MEMBERSHIP' as const
   status = 403
 
   constructor(message = 'Not a member of this room') {
     super(message)
     this.name = 'InsufficientMembershipError'
+  }
+}
+
+// Legacy error class for backward compatibility
+export class InsufficientRoleErrorLegacy extends Error {
+  code = 'INSUFFICIENT_ROLE' as const
+  status = 403
+
+  constructor(message = 'Insufficient role to access this resource') {
+    super(message)
+    this.name = 'InsufficientRoleError'
   }
 }
 
@@ -42,12 +86,16 @@ export function hasRole(session: Session, role: Role): boolean {
 
 /**
  * Assert that session has the required role, throw 403 if not
- * @param session - Session object from auth()
+ * @param session - Session object from auth() or null
  * @param role - Required role
  * @throws InsufficientRoleError if session doesn't have the required role
  */
-export function assertRole(session: Session, role: Role): void {
-  if (!hasRole(session, role)) {
+export function assertRole(session: Session | null, role: Role): void {
+  const userRole = session?.user?.role
+  if (!userRole) throw new InsufficientRoleError()
+
+  const order: Role[] = [Role.USER, Role.MODERATOR, Role.ADMIN]
+  if (order.indexOf(userRole) < order.indexOf(role)) {
     throw new InsufficientRoleError()
   }
 }
@@ -80,44 +128,51 @@ export async function getMembership(
 }
 
 /**
- * Check if user has required room role (OWNER, MODERATOR, or MEMBER)
+ * Check if user has required room role (hierarchical check)
  * @param userId - User ID
  * @param roomId - Room ID
- * @param requiredRoles - Array of required roles (default: [OWNER, MODERATOR])
+ * @param requiredRole - Minimum required role (hierarchical)
  * @param prisma - Prisma client instance
- * @returns true if user has required role
+ * @returns true if user has required role or higher
  */
 export async function hasRoomRole(
   userId: string,
   roomId: string,
-  requiredRoles: RoomRole[] = [RoomRole.OWNER, RoomRole.MODERATOR],
+  requiredRole: RoomRole,
   prisma: any
 ): Promise<boolean> {
   const membership = await getMembership(userId, roomId, prisma)
   if (!membership) return false
-  return requiredRoles.includes(membership.role)
+  return hasRoleOrHigher(membership.role, requiredRole)
 }
 
 /**
- * Assert that user is a member of the room
- * @param userId - User ID
- * @param roomId - Room ID
- * @param prisma - Prisma client instance
- * @throws InsufficientMembershipError if user is not a member
+ * Assert that a membership exists and that it meets the minimum role.
+ * - If no membership: throws NotMemberError ("NOT_MEMBER")
+ * - If role too low: throws InsufficientRoleError ("INSUFFICIENT_ROLE")
+ * - Otherwise returns membership (so you can keep using it)
  */
 export async function assertMembership(
   userId: string,
   roomId: string,
-  prisma: any
-): Promise<void> {
+  prisma: any,
+  minRole: RoomRole = RoomRole.MEMBER
+): Promise<{ role: RoomRole }> {
   const membership = await getMembership(userId, roomId, prisma)
+  
   if (!membership) {
-    throw new InsufficientMembershipError()
+    throw new NotMemberError()
   }
+
+  if (!hasRoleOrHigher(membership.role, minRole)) {
+    throw new InsufficientRoleError()
+  }
+
+  return membership
 }
 
 /**
- * Assert that user has required room role
+ * Assert that user has required room role (for backward compatibility with array-based checks)
  * @param userId - User ID
  * @param roomId - Room ID
  * @param requiredRoles - Array of required roles
@@ -130,8 +185,22 @@ export async function assertRoomRole(
   requiredRoles: RoomRole[],
   prisma: any
 ): Promise<void> {
-  const hasRole = await hasRoomRole(userId, roomId, requiredRoles, prisma)
-  if (!hasRole) {
-    throw new InsufficientMembershipError('Insufficient room role')
+  const membership = await getMembership(userId, roomId, prisma)
+  
+  if (!membership) {
+    const error = new InsufficientMembershipError('Not a member of this room')
+    throw error
+  }
+
+  // Check if user has any of the required roles (hierarchical)
+  // Find the minimum required role from the array
+  const minRequiredRole = requiredRoles.reduce((min, role) => {
+    return ROLE_RANK[role] < ROLE_RANK[min] ? role : min
+  }, requiredRoles[0])
+
+  // Check if user's role meets or exceeds the minimum
+  if (!hasRoleOrHigher(membership.role, minRequiredRole)) {
+    const error = new InsufficientMembershipError('Insufficient room role')
+    throw error
   }
 }

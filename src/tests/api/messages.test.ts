@@ -1,13 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { GET, POST } from '@/app/api/chat/messages/route'
+import { GET } from '@/app/api/chat/messages/route'
+import { handlePostMessageCore } from '@/app/api/chat/messages/core'
 import { prisma } from '@/lib/prisma'
-import { checkRate } from '@/lib/rateLimit'
+import { checkMessageRate, RateLimitedError } from '@/lib/rateLimit'
 
 // Mock dependencies
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
+    room: {
+      findUnique: vi.fn(),
+    },
     roomMember: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     message: {
       findMany: vi.fn(),
@@ -20,9 +28,19 @@ vi.mock('@/lib/auth', () => ({
   auth: vi.fn(),
 }))
 
-vi.mock('@/lib/rateLimit', () => ({
-  checkRate: vi.fn(),
-}))
+vi.mock('@/lib/rateLimit', () => {
+  return {
+    checkMessageRate: vi.fn().mockResolvedValue(undefined),
+    RateLimitedError: class RateLimitedError extends Error {
+      name = 'RateLimitedError'
+      code = 'RATE_LIMITED'
+      status = 429
+      constructor(message = 'Rate limit exceeded') {
+        super(message)
+      }
+    },
+  }
+})
 
 vi.mock('@/lib/io', () => ({
   getIO: vi.fn(() => null),
@@ -38,7 +56,7 @@ describe('GET /api/chat/messages', () => {
   it('should return error for unauthorized request', async () => {
     vi.mocked(auth).mockResolvedValue(null)
 
-    const request = new Request('http://localhost/api/chat/messages?roomId=test')
+    const request = new Request('http://localhost/api/chat/messages?roomId=room-1')
     const response = await GET(request)
     const data = await response.json()
 
@@ -65,10 +83,19 @@ describe('GET /api/chat/messages', () => {
 
   it('should return error if user is not a room member', async () => {
     vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
+      user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      id: 'room-1',
+      type: 'PUBLIC',
+      isPrivate: false,
+    } as any)
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue(null)
 
     const request = new Request('http://localhost/api/chat/messages?roomId=room-1')
@@ -94,10 +121,19 @@ describe('GET /api/chat/messages', () => {
     ]
 
     vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
+      user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      id: 'room-1',
+      type: 'PUBLIC',
+      isPrivate: false,
+    } as any)
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue({
       id: 'member-1',
       userId: 'user-1',
@@ -132,6 +168,18 @@ describe('GET /api/chat/messages', () => {
 describe('POST /api/chat/messages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Mock prisma.user.findUnique for all POST tests
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      id: 'room-1',
+      type: 'PUBLIC',
+      isPrivate: false,
+    } as any)
+    // Default: checkMessageRate resolves (no rate limit)
+    vi.mocked(checkMessageRate).mockReturnValue(undefined)
   })
 
   it('should return error for unauthorized request', async () => {
@@ -139,29 +187,31 @@ describe('POST /api/chat/messages', () => {
 
     const request = new Request('http://localhost/api/chat/messages', {
       method: 'POST',
-      body: JSON.stringify({ roomId: 'room-1', content: 'Hello' }),
+      body: JSON.stringify({ roomId: 'clx1234567890123456789012', content: 'Hello' }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(false)
-    expect(data.code).toBe('UNAUTHORIZED')
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(401)
+    expect(response.body.ok).toBe(false)
+    expect(response.body.code).toBe('UNAUTHORIZED')
   })
 
-  it('should return error when rate limited (429)', async () => {
-    vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
-      expires: new Date().toISOString(),
-    } as any)
+      it('should return error when rate limited (429)', async () => {
+        vi.mocked(auth).mockResolvedValue({
+          user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
+          expires: new Date().toISOString(),
+        } as any)
 
-    const { RateLimitedError } = await import('@/lib/rateLimit')
-    const rateLimitError = new RateLimitedError('Rate limit exceeded')
-    
-    vi.mocked(checkRate).mockImplementation(() => {
-      throw rateLimitError
-    })
+        vi.mocked(prisma.user.findUnique).mockResolvedValue({
+          id: 'user-1',
+          email: 'test@example.com',
+        } as any)
+
+        const rateLimitError = new RateLimitedError('Rate limit exceeded')
+        
+        vi.mocked(checkMessageRate).mockImplementationOnce(() => {
+          throw rateLimitError
+        })
 
     const request = new Request('http://localhost/api/chat/messages', {
       method: 'POST',
@@ -172,22 +222,23 @@ describe('POST /api/chat/messages', () => {
       }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(false)
-    expect(data.code).toBe('RATE_LIMITED')
-    expect(data.message).toContain('Rate limit exceeded')
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(429)
+    expect(response.body.ok).toBe(false)
+    expect(response.body.code).toBe('RATE_LIMITED')
+    expect(response.body.message).toContain('Rate limit exceeded')
   })
 
   it('should return 400 error for invalid payload', async () => {
     vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
+      user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
-    vi.mocked(checkRate).mockReturnValue(undefined)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
 
     const request = new Request('http://localhost/api/chat/messages', {
       method: 'POST',
@@ -195,22 +246,23 @@ describe('POST /api/chat/messages', () => {
       body: JSON.stringify({ roomId: 'invalid-cuid', content: '' }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(false)
-    expect(data.code).toBe('VALIDATION_ERROR')
-    expect(data.details).toBeDefined()
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(400)
+    expect(response.body.ok).toBe(false)
+    expect(response.body.code).toBe('VALIDATION_ERROR')
+    expect(response.body.details).toBeDefined()
   })
 
   it('should return error if user is not a room member', async () => {
     vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
+      user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
-    vi.mocked(checkRate).mockReturnValue(undefined)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue(null)
 
     const request = new Request('http://localhost/api/chat/messages', {
@@ -221,13 +273,11 @@ describe('POST /api/chat/messages', () => {
       }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(false)
-    expect(data.code).toBe('FORBIDDEN')
-    expect(data.message).toContain('Not a member')
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(403)
+    expect(response.body.ok).toBe(false)
+    expect(response.body.code).toBe('FORBIDDEN')
+    expect(response.body.message).toContain('Not a member')
   })
 
   it('should create message and return success', async () => {
@@ -241,11 +291,14 @@ describe('POST /api/chat/messages', () => {
     }
 
     vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', role: 'USER' },
+      user: { id: 'user-1', email: 'test@example.com', role: 'USER' },
       expires: new Date().toISOString(),
     } as any)
 
-    vi.mocked(checkRate).mockReturnValue(undefined)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any)
 
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue({
       id: 'member-1',
@@ -264,21 +317,19 @@ describe('POST /api/chat/messages', () => {
       }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(true)
-    expect(data.data).toBeDefined()
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(201)
+    expect(response.body.ok).toBe(true)
+    expect(response.body.data).toBeDefined()
     // Date gets serialized to ISO string in JSON response
-    expect(data.data).toMatchObject({
+    expect(response.body.data).toMatchObject({
       id: mockMessage.id,
       roomId: mockMessage.roomId,
       userId: mockMessage.userId,
       content: mockMessage.content,
       user: mockMessage.user,
     })
-    expect(data.data.createdAt).toBeDefined()
+    expect(response.body.data.createdAt).toBeDefined()
     expect(prisma.message.create).toHaveBeenCalled()
   })
 })

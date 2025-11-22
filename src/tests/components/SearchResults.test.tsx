@@ -40,6 +40,7 @@ describe('SearchResults', () => {
     }
 
     ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true,
       json: async () => mockResults,
     })
 
@@ -76,13 +77,15 @@ describe('SearchResults', () => {
     }
 
     ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true,
       json: async () => mockResults,
     })
 
     render(<SearchResults initialQuery="test" />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Test message snippet/i)).toBeInTheDocument()
+      // Look for the full snippet text specifically
+      expect(screen.getByText('Test message snippet')).toBeInTheDocument()
     })
   })
 
@@ -98,6 +101,7 @@ describe('SearchResults', () => {
             title: 'Support',
             description: 'Support room',
             type: 'PUBLIC',
+            score: 0.95,
             memberCount: 10,
             messageCount: 50,
           },
@@ -106,6 +110,7 @@ describe('SearchResults', () => {
     }
 
     ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true,
       json: async () => mockResults,
     })
 
@@ -159,6 +164,7 @@ describe('SearchResults', () => {
     }
 
     ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true,
       json: async () => mockResults,
     })
 

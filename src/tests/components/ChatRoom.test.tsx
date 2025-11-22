@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ChatRoom } from '@/components/ChatRoom'
 import { useSession } from 'next-auth/react'
+import { useChatStore } from '@/lib/chatStore'
 
 // Mock next-auth
 vi.mock('next-auth/react', () => ({
@@ -22,12 +23,56 @@ vi.mock('@/lib/socket', () => ({
 // Mock fetch globally
 global.fetch = vi.fn()
 
+// Removed mockDebugSession - no longer needed since we removed /api/debug/session fetch
+
+// Helper to mock room details fetch (for RoomHeader)
+const mockRoomDetails = () => {
+  ;(global.fetch as any).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({
+      ok: true,
+      data: {
+        room: {
+          id: 'room-1',
+          name: '#general',
+          title: 'General',
+          description: null,
+          tags: [],
+          type: 'PUBLIC',
+          status: null,
+          isPrivate: false,
+          userRole: 'MEMBER',
+          isMember: true,
+          creator: { id: 'user-1', name: 'Test User', email: 'test@test.com', image: null },
+          owner: null,
+          lastResponder: null,
+          _count: { members: 1, messages: 0 },
+        },
+      },
+    }),
+  })
+}
+
 describe('ChatRoom', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Reset Zustand store to ensure clean state for each test
+    const store = useChatStore.getState()
+    // Clear all rooms
+    Object.keys(store.rooms).forEach(roomId => {
+      useChatStore.setState({
+        rooms: {},
+        expandedThreads: {},
+      })
+    })
+    // Also clear localStorage if it exists
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('accessly-chat-store')
+    }
   })
 
-  it('should render room name', () => {
+  it('should render room name', async () => {
+    mockRoomDetails()
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: { id: 'user-1', name: 'Test User', email: 'test@test.com' },
@@ -36,10 +81,18 @@ describe('ChatRoom', () => {
     } as any)
 
     render(<ChatRoom roomId="room-1" roomName="#general" />)
-    expect(screen.getByText('#general')).toBeInTheDocument()
+    // Wait for room details to load (RoomHeader shows "Loading room details..." initially)
+    await waitFor(() => {
+      expect(screen.queryByText('Loading room details...')).not.toBeInTheDocument()
+    }, { timeout: 3000 })
+    // Then check for room name
+    await waitFor(() => {
+      expect(screen.getByText('#general')).toBeInTheDocument()
+    })
   })
 
   it('should show sign-in message when not authenticated', () => {
+    // No need to mock /api/debug/session for unauthenticated users
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: 'unauthenticated',
@@ -65,10 +118,11 @@ describe('ChatRoom', () => {
       },
     ]
 
-    vi.mocked(fetch).mockResolvedValue({
+    mockRoomDetails()
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ messages: mockMessages }),
-    } as Response)
+      json: async () => ({ ok: true, data: { messages: mockMessages } }),
+    })
 
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -79,17 +133,24 @@ describe('ChatRoom', () => {
 
     render(<ChatRoom roomId="room-1" roomName="#general" />)
 
+    // Wait for room details to load first
+    await waitFor(() => {
+      expect(screen.queryByText('Loading room details...')).not.toBeInTheDocument()
+    }, { timeout: 3000 })
+    
+    // Then wait for messages
     await waitFor(() => {
       expect(screen.getByText('Hello!')).toBeInTheDocument()
     })
 
-    expect(fetch).toHaveBeenCalledWith('/api/chat/messages?roomId=room-1&limit=50')
+      expect(global.fetch).toHaveBeenCalledWith('/api/chat/messages?roomId=room-1&limit=50')
   })
 
   it('should send message when form is submitted', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    mockRoomDetails()
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ messages: [] }),
+      json: async () => ({ ok: true, data: { messages: [] } }),
     } as Response)
 
     const mockCreatedMessage = {
@@ -105,9 +166,9 @@ describe('ChatRoom', () => {
       },
     }
 
-    vi.mocked(fetch).mockResolvedValueOnce({
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ message: mockCreatedMessage }),
+      json: async () => ({ ok: true, data: mockCreatedMessage }),
     } as Response)
 
     vi.mocked(useSession).mockReturnValue({
@@ -121,7 +182,7 @@ describe('ChatRoom', () => {
 
     // Wait for initial load
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     // Find input and button
@@ -129,6 +190,11 @@ describe('ChatRoom', () => {
     const sendButton = screen.getByText('Send')
 
     // Type message
+    // Wait for room details to load first
+    await waitFor(() => {
+      expect(screen.queryByText('Loading room details...')).not.toBeInTheDocument()
+    }, { timeout: 3000 })
+    
     fireEvent.change(input, { target: { value: 'Test message' } })
     fireEvent.click(sendButton)
 
@@ -139,7 +205,7 @@ describe('ChatRoom', () => {
 
     // Check API call was made
     await waitFor(() => {
-      const postCalls = (fetch as any).mock.calls.filter(
+      const postCalls = (global.fetch as any).mock.calls.filter(
         (call: any[]) => call[0] === '/api/chat/messages' && call[1]?.method === 'POST'
       )
       expect(postCalls.length).toBeGreaterThan(0)
@@ -150,14 +216,15 @@ describe('ChatRoom', () => {
   })
 
   it('should handle send error and show toast', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    mockRoomDetails()
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ messages: [] }),
+      json: async () => ({ ok: true, data: { messages: [] } }),
     } as Response)
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: 'Rate limit exceeded' }),
+    ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: false, code: 'RATE_LIMITED', message: 'Rate limit exceeded' }),
     } as Response)
 
     vi.mocked(useSession).mockReturnValue({
@@ -170,8 +237,13 @@ describe('ChatRoom', () => {
     render(<ChatRoom roomId="room-1" roomName="#general" />)
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     })
+    
+    // Wait for room details to load first
+    await waitFor(() => {
+      expect(screen.queryByText('Loading room details...')).not.toBeInTheDocument()
+    }, { timeout: 3000 })
 
     const input = screen.getByPlaceholderText('Type a message...')
     const sendButton = screen.getByText('Send')
@@ -185,15 +257,17 @@ describe('ChatRoom', () => {
   })
 
   it('should handle Enter key press to send', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    mockRoomDetails()
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ messages: [] }),
+      json: async () => ({ ok: true, data: { messages: [] } }),
     } as Response)
 
-    vi.mocked(fetch).mockResolvedValueOnce({
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        message: {
+        ok: true,
+        data: {
           id: 'msg-2',
           content: 'Enter pressed',
           createdAt: new Date().toISOString(),
@@ -212,25 +286,27 @@ describe('ChatRoom', () => {
     render(<ChatRoom roomId="room-1" roomName="#general" />)
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     const input = screen.getByPlaceholderText('Type a message...') as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: 'Enter pressed' } })
-    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 })
+    // Use keyDown instead of keyPress for better compatibility
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', keyCode: 13 })
 
     await waitFor(() => {
-      const postCalls = (fetch as any).mock.calls.filter(
+      const postCalls = (global.fetch as any).mock.calls.filter(
         (call: any[]) => call[0] === '/api/chat/messages' && call[1]?.method === 'POST'
       )
       expect(postCalls.length).toBeGreaterThan(0)
-    })
+    }, { timeout: 3000 })
   })
 
   it('should not send empty message', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    mockRoomDetails()
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ messages: [] }),
+      json: async () => ({ ok: true, data: { messages: [] } }),
     } as Response)
 
     vi.mocked(useSession).mockReturnValue({
@@ -243,11 +319,15 @@ describe('ChatRoom', () => {
     render(<ChatRoom roomId="room-1" roomName="#general" />)
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     })
 
-    const sendButton = screen.getByText('Send')
-    expect(sendButton).toBeDisabled()
+    // Wait for component to render with empty input state
+    const sendButton = await waitFor(() => {
+      const btn = screen.getByText('Send')
+      expect(btn).toBeDisabled()
+      return btn
+    })
 
     const input = screen.getByPlaceholderText('Type a message...')
     fireEvent.change(input, { target: { value: '   ' } }) // Only whitespace

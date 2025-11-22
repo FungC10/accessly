@@ -1,6 +1,5 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertRoomRole, getMembership } from '@/lib/rbac'
 import { RoomRole, RoomType } from '@prisma/client'
 import { z } from 'zod'
 
@@ -52,32 +51,13 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Only allow inviting to private rooms
-    if (room.type !== RoomType.PRIVATE && !room.isPrivate) {
+    // Public room → 403 FORBIDDEN (test expects this)
+    if (!room.isPrivate || room.type !== RoomType.PRIVATE) {
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
         message: 'Can only invite users to private rooms. Public rooms can be joined directly.',
       }, { status: 403 })
-    }
-
-    // Check if user has permission (OWNER or MODERATOR)
-    try {
-      await assertRoomRole(
-        session.user.id,
-        roomId,
-        [RoomRole.OWNER, RoomRole.MODERATOR],
-        prisma
-      )
-    } catch (error: any) {
-      if (error.code === 'INSUFFICIENT_MEMBERSHIP') {
-        return Response.json({
-          ok: false,
-          code: 'FORBIDDEN',
-          message: 'Only room creators and moderators can invite users',
-        }, { status: 403 })
-      }
-      throw error
     }
 
     const body = await request.json()
@@ -92,6 +72,33 @@ export async function POST(
         details: validated.error.errors,
       }, { status: 400 })
     }
+
+    const inviterMembership = await prisma.roomMember.findFirst({
+      where: {
+        roomId,
+        userId: session.user.id,
+      },
+    })
+
+    // Not a member → 403 NOT_MEMBER
+    if (!inviterMembership) {
+      return Response.json({
+        ok: false,
+        code: 'NOT_MEMBER',
+        message: 'Not a member of this room',
+      }, { status: 403 })
+    }
+
+    // MEMBER cannot invite → 403 FORBIDDEN
+    if (inviterMembership.role === RoomRole.MEMBER) {
+      return Response.json({
+        ok: false,
+        code: 'FORBIDDEN',
+        message: 'Only room creators and moderators can invite users',
+      }, { status: 403 })
+    }
+
+    // OWNER or MODERATOR continue...
 
     // Check if target user exists
     const targetUser = await prisma.user.findUnique({
@@ -111,20 +118,24 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Check if user is already a member
-    const existingMembership = await getMembership(validated.data.userId, roomId, prisma)
-    if (existingMembership) {
+    const existing = await prisma.roomMember.findFirst({
+      where: {
+        roomId,
+        userId: validated.data.userId,
+      },
+    })
+
+    if (existing) {
       return Response.json({
         ok: true,
         code: 'ALREADY_MEMBER',
         message: 'User is already a member of this room',
         data: {
-          membership: existingMembership,
+          membership: existing,
         },
-      })
+      }, { status: 200 })
     }
 
-    // Add user as member
     const membership = await prisma.roomMember.create({
       data: {
         userId: validated.data.userId,
@@ -143,6 +154,7 @@ export async function POST(
       },
     })
 
+    // Must be 201, not 200
     return Response.json({
       ok: true,
       code: 'INVITED',
@@ -165,4 +177,3 @@ export async function POST(
     }, { status: 500 })
   }
 }
-

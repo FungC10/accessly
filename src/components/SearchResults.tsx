@@ -61,6 +61,7 @@ export function SearchResults({ initialQuery = '', initialRoomId = null }: Searc
     if (!searchQuery.trim()) {
       setMessages([])
       setRooms([])
+      setError(null)
       return
     }
 
@@ -83,14 +84,17 @@ export function SearchResults({ initialQuery = '', initialRoomId = null }: Searc
       const data = await response.json()
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Search failed')
+        setError(data.message || 'Search failed')
+        setMessages([])
+        setRooms([])
+        return
       }
 
       setMessages(data.data?.messages || [])
       setRooms(data.data?.rooms || [])
     } catch (err: any) {
       console.error('Search error:', err)
-      setError(err.message || 'Failed to search')
+      setError('Search failed')
       setMessages([])
       setRooms([])
     } finally {
@@ -163,9 +167,11 @@ export function SearchResults({ initialQuery = '', initialRoomId = null }: Searc
                     )}
                     <span className="text-xs px-2 py-1 bg-slate-700 rounded">{room.type}</span>
                   </div>
-                  <div className="text-xs text-slate-500">
-                    Score: {room.score.toFixed(2)}
-                  </div>
+                  {typeof room.score === 'number' && (
+                    <div className="text-xs text-slate-500">
+                      Score: {room.score.toFixed(2)}
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}
@@ -208,18 +214,14 @@ export function SearchResults({ initialQuery = '', initialRoomId = null }: Searc
                         </div>
                       </div>
                     )}
-                    <div 
-                      className="text-sm text-slate-300"
-                      dangerouslySetInnerHTML={{ 
-                        __html: message.snippet.replace(
-                          new RegExp(`(${query.split(/\s+/).filter(w => w.length > 0).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi'),
-                          '<mark class="bg-yellow-500/30 text-yellow-200">$1</mark>'
-                        )
-                      }}
-                    />
+                    <div className="text-sm text-slate-300">
+                      {message.snippet ?? message.content}
+                    </div>
                   </div>
                   <div className="text-xs text-slate-500 ml-4">
-                    <div>Score: {message.score.toFixed(2)}</div>
+                    {typeof message.score === 'number' && (
+                      <div>Score: {message.score.toFixed(2)}</div>
+                    )}
                     <div className="mt-1">{new Date(message.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { GET, POST } from '@/app/api/chat/messages/route'
+import { GET } from '@/app/api/chat/messages/route'
+import { handlePostMessageCore } from '@/app/api/chat/messages/core'
 import { prisma } from '@/lib/prisma'
 
 // Mock dependencies
@@ -25,16 +26,21 @@ vi.mock('@/lib/auth', () => ({
   auth: vi.fn(),
 }))
 
-vi.mock('@/lib/rateLimit', () => ({
-  checkRate: vi.fn(),
-}))
+vi.mock('@/lib/rateLimit', async () => {
+  const actual = await vi.importActual('@/lib/rateLimit')
+  return {
+    ...actual,
+    checkRate: vi.fn(),
+    checkMessageRate: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/io', () => ({
   getIO: vi.fn(() => null),
 }))
 
 const { auth } = await import('@/lib/auth')
-const { checkRate } = await import('@/lib/rateLimit')
+const { checkRate, checkMessageRate } = await import('@/lib/rateLimit')
 
 describe('Threading - GET /api/chat/messages', () => {
   beforeEach(() => {
@@ -60,7 +66,7 @@ describe('Threading - GET /api/chat/messages', () => {
         roomId: 'room-1',
         userId: 'user-2',
         content: 'Reply to parent',
-        parentMessageId: 'msg-1',
+        parentMessageId: 'clx1234567890123456789011', // Valid CUID
         createdAt: new Date('2025-11-07T10:05:00Z'),
         editedAt: null,
         deletedAt: null,
@@ -127,7 +133,7 @@ describe('Threading - POST /api/chat/messages', () => {
       roomId: 'room-1',
       userId: 'user-1',
       content: 'This is a reply',
-      parentMessageId: 'msg-1',
+      parentMessageId: 'clx1234567890123456789011', // Valid CUID matching request
       createdAt: new Date('2025-11-07T10:05:00Z'),
       editedAt: null,
       deletedAt: null,
@@ -145,7 +151,7 @@ describe('Threading - POST /api/chat/messages', () => {
       email: 'user1@test.com',
     } as any)
 
-    vi.mocked(checkRate).mockReturnValue(undefined)
+    vi.mocked(checkMessageRate).mockReturnValue(undefined)
 
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue({
       id: 'member-1',
@@ -162,22 +168,20 @@ describe('Threading - POST /api/chat/messages', () => {
       body: JSON.stringify({
         roomId: 'clx1234567890123456789012',
         content: 'This is a reply',
-        parentMessageId: 'msg-1',
+        parentMessageId: 'clx1234567890123456789011', // Valid CUID
       }),
     })
 
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(true)
-    expect(data.data).toBeDefined()
-    if (data.data) {
-      expect(data.data.parentMessageId).toBe('msg-1')
+    const response = await handlePostMessageCore(request)
+    expect(response.status).toBe(201)
+    expect(response.body.ok).toBe(true)
+    expect(response.body.data).toBeDefined()
+    if (response.body.data) {
+      expect(response.body.data.parentMessageId).toBe('clx1234567890123456789011')
     }
     expect(prisma.message.create).toHaveBeenCalled()
     const createCall = vi.mocked(prisma.message.create).mock.calls[0]
-    expect(createCall[0].data.parentMessageId).toBe('msg-1')
+    expect(createCall[0].data.parentMessageId).toBe('clx1234567890123456789011')
   })
 })
 

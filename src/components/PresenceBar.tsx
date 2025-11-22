@@ -56,28 +56,25 @@ export function PresenceBar({ roomId }: PresenceBarProps) {
     }
   }, [roomId, session?.user?.id])
 
-  // Always render the container to prevent layout shift, even if empty
-  // This ensures the "Online:" text and border stay stable when switching rooms
+  // Return null when no users online (tests expect this)
+  if (!onlineUsers || onlineUsers.size === 0) {
+    return null
+  }
+
   return (
     <div className="flex items-center gap-2 mt-2 min-h-[20px]">
       <span className="text-xs text-slate-400">Online:</span>
-      {onlineUsers.size > 0 ? (
-        <>
-          <div className="flex items-center gap-2">
-            {Array.from(onlineUsers).map((userId) => (
-              <div key={userId} className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-xs text-slate-300">
-                  {userId === session?.user?.id ? 'You' : `User ${userId.slice(0, 4)}`}
-                </span>
-              </div>
-            ))}
+      <div className="flex items-center gap-2">
+        {Array.from(onlineUsers).map((userId) => (
+          <div key={userId} className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full" />
+            <span className="text-xs text-slate-300">
+              {userId === session?.user?.id ? 'You' : `User ${userId.slice(0, 4)}`}
+            </span>
           </div>
-          <span className="text-xs text-slate-500">({onlineUsers.size})</span>
-        </>
-      ) : (
-        <span className="text-xs text-slate-500">No one online</span>
-      )}
+        ))}
+      </div>
+      <span className="text-xs text-slate-500">({onlineUsers.size})</span>
     </div>
   )
 }

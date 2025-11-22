@@ -141,7 +141,7 @@ describe('Audit Logging Integration', () => {
         id: 'room-1',
         title: 'Old Title',
         description: 'Old Description',
-        tags: ['tag1'],
+        tags: ['old-tag'],
       }
 
       const mockMembership = {
@@ -253,7 +253,7 @@ describe('Audit Logging Integration', () => {
         id: 'room-1',
         title: 'Test Room',
         description: 'Test Description',
-        tags: ['tag1'],
+        tags: ['old-tag'],
       }
 
       const mockMembership = {

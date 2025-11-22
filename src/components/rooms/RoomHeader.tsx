@@ -263,34 +263,29 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     }
   }
 
-  if (isLoading || !roomDetails) {
-    return (
-      <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
-        <div className="text-slate-400">Loading room details...</div>
-      </div>
-    )
-  }
+  // Always show at least the roomName prop, even while loading
+  const displayName = roomDetails?.name ?? roomName ?? 'Room'
 
-  const visibilityBadge = roomDetails.type === 'PUBLIC'
+  const visibilityBadge = roomDetails?.type === 'PUBLIC'
     ? { label: 'Public', color: 'bg-green-500/20 text-green-400 border-green-500/30' }
-    : roomDetails.type === 'PRIVATE'
+    : roomDetails?.type === 'PRIVATE'
     ? { label: 'Private', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
-    : roomDetails.type === 'TICKET'
+    : roomDetails?.type === 'TICKET'
     ? { label: 'Ticket', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
     : { label: 'DM', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
 
-  const statusBadge = roomDetails.status === 'OPEN'
+  const statusBadge = roomDetails?.status === 'OPEN'
     ? { label: 'OPEN', color: 'bg-green-500/20 text-green-400 border-green-500/30' }
-    : roomDetails.status === 'WAITING'
+    : roomDetails?.status === 'WAITING'
     ? { label: 'WAITING', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' }
-    : roomDetails.status === 'RESOLVED'
+    : roomDetails?.status === 'RESOLVED'
     ? { label: 'RESOLVED', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
     : null
 
-  const canEdit = roomDetails.userRole === RoomRole.OWNER
+  const canEdit = roomDetails?.userRole === RoomRole.OWNER
   // DM rooms cannot have invites (only 2 members)
-  const canInvite = roomDetails.type !== 'DM' && roomDetails.type !== 'TICKET' && (roomDetails.userRole === RoomRole.OWNER || roomDetails.userRole === RoomRole.MODERATOR)
-  const canAssign = roomDetails.type === 'TICKET' && roomDetails.userRole === RoomRole.OWNER
+  const canInvite = roomDetails?.type !== 'DM' && roomDetails?.type !== 'TICKET' && (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.userRole === RoomRole.MODERATOR)
+  const canAssign = roomDetails?.type === 'TICKET' && roomDetails?.userRole === RoomRole.OWNER
 
   return (
     <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
@@ -338,8 +333,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             </form>
           ) : (
             <>
-              <h2 className="text-xl font-semibold mb-1">{roomDetails.title || roomName}</h2>
-              {roomDetails.description && (
+              <h2 className="text-xl font-semibold mb-1">{displayName}</h2>
+              {roomDetails?.description && (
                 <p className="text-sm text-slate-400 mb-2">{roomDetails.description}</p>
               )}
             </>
@@ -388,7 +383,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
             title="View members"
           >
-            👥 {roomDetails._count.members}
+            👥 {roomDetails?._count?.members ?? 0}
           </button>
         </div>
       </div>
@@ -403,7 +398,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             {statusBadge.label}
           </span>
         )}
-        {roomDetails.tags && roomDetails.tags.length > 0 && (
+        {roomDetails?.tags && roomDetails.tags.length > 0 && (
           <>
             {roomDetails.tags.map((tag) => (
               <span
@@ -415,7 +410,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             ))}
           </>
         )}
-        {roomDetails.userRole && (
+        {roomDetails?.userRole && (
           <span className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded">
             {roomDetails.userRole}
           </span>
@@ -423,21 +418,21 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       </div>
 
       {/* Ticket-specific info */}
-      {roomDetails.type === 'TICKET' && (
+      {roomDetails?.type === 'TICKET' && (
         <div className="mt-3 pt-3 border-t border-slate-800 space-y-2 text-sm">
-          {roomDetails.owner && (
+          {roomDetails?.owner && (
             <div className="flex items-center gap-2 text-slate-400">
               <span className="font-medium text-slate-300">Assigned to:</span>
               <span>{roomDetails.owner.name || roomDetails.owner.email}</span>
             </div>
           )}
-          {roomDetails.lastResponder && (
+          {roomDetails?.lastResponder && (
             <div className="flex items-center gap-2 text-slate-400">
               <span className="font-medium text-slate-300">Last responder:</span>
               <span>{roomDetails.lastResponder.name || roomDetails.lastResponder.email}</span>
             </div>
           )}
-          {roomDetails.averageResponseTime !== null && (
+          {roomDetails?.averageResponseTime !== null && (
             <div className="flex items-center gap-2 text-slate-400">
               <span className="font-medium text-slate-300">Avg response time:</span>
               <span>{roomDetails.averageResponseTime} minutes</span>
@@ -541,7 +536,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {showMembers && (
         <MembersList
           roomId={roomId}
-          userRole={roomDetails.userRole}
+          userRole={roomDetails?.userRole ?? null}
           onClose={() => {
             console.log('Closing members modal')
             setShowMembers(false)

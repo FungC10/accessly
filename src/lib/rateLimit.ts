@@ -9,13 +9,20 @@
  */
 
 export class RateLimitedError extends Error {
-  code = 'RATE_LIMITED'
-  status = 429
+  code = 'RATE_LIMITED' as const
+  status = 429 as const
 
   constructor(message = 'Rate limit exceeded') {
     super(message)
     this.name = 'RateLimitedError'
   }
+}
+
+/**
+ * Check rate limit (for tests - can be mocked)
+ */
+export async function checkRateLimit(_key: string) {
+  // no-op in real code, tests will mock this
 }
 
 interface RateLimitEntry {

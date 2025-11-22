@@ -2,65 +2,41 @@
  * Parse complex search query syntax
  * Supports: from:@alice tag:billing before:2024-01-01
  */
-export interface ParsedQuery {
-  text: string // Main search text
-  from?: string // User email or name filter
-  tag?: string // Tag filter
-  before?: Date // Date filter (before this date)
-  after?: Date // Date filter (after this date)
+export type SearchFilters = {
+  from?: string
+  tag?: string
+  before?: string
+  after?: string
 }
 
-export function parseSearchQuery(query: string): ParsedQuery {
-  const result: ParsedQuery = { text: '' }
-  
-  // Patterns for special syntax
-  const fromPattern = /from:(\S+)/gi
-  const tagPattern = /tag:(\S+)/gi
-  const beforePattern = /before:(\S+)/gi
-  const afterPattern = /after:(\S+)/gi
-  
-  let processedQuery = query
-  
-  // Extract from: filter
-  const fromMatch = fromPattern.exec(query)
-  if (fromMatch) {
-    result.from = fromMatch[1].replace(/^@/, '') // Remove @ if present
-    processedQuery = processedQuery.replace(fromPattern, '').trim()
-  }
-  
-  // Extract tag: filter
-  const tagMatch = tagPattern.exec(query)
-  if (tagMatch) {
-    result.tag = tagMatch[1]
-    processedQuery = processedQuery.replace(tagPattern, '').trim()
-  }
-  
-  // Extract before: filter
-  const beforeMatch = beforePattern.exec(query)
-  if (beforeMatch) {
-    const dateStr = beforeMatch[1]
-    const date = new Date(dateStr)
-    if (!isNaN(date.getTime())) {
-      result.before = date
+export type ParsedSearchQuery = {
+  text: string
+  filters: SearchFilters
+}
+
+export function parseSearchQuery(query: string): ParsedSearchQuery {
+  const filters: SearchFilters = {}
+  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  const textTokens: string[] = []
+
+  for (const token of tokens) {
+    if (token.startsWith('from:@')) {
+      filters.from = token.slice('from:@'.length)
+    } else if (token.startsWith('tag:')) {
+      filters.tag = token.slice('tag:'.length)
+    } else if (token.startsWith('before:')) {
+      filters.before = token.slice('before:'.length)
+    } else if (token.startsWith('after:')) {
+      filters.after = token.slice('after:'.length)
+    } else {
+      textTokens.push(token)
     }
-    processedQuery = processedQuery.replace(beforePattern, '').trim()
   }
-  
-  // Extract after: filter
-  const afterMatch = afterPattern.exec(query)
-  if (afterMatch) {
-    const dateStr = afterMatch[1]
-    const date = new Date(dateStr)
-    if (!isNaN(date.getTime())) {
-      result.after = date
-    }
-    processedQuery = processedQuery.replace(afterPattern, '').trim()
+
+  return {
+    text: textTokens.join(' '),
+    filters,
   }
-  
-  // Remaining text is the main search query
-  result.text = processedQuery.trim()
-  
-  return result
 }
 
 /**
@@ -85,50 +61,42 @@ export function buildTsQuery(text: string): string {
 /**
  * Extract snippet from text with highlighting markers
  */
-export function extractSnippet(text: string, query: string, maxLength: number = 200): string {
-  if (!text) return ''
-  
-  const lowerText = text.toLowerCase()
-  const lowerQuery = query.toLowerCase()
-  const queryWords = lowerQuery.split(/\s+/).filter(w => w.length > 0)
-  
-  // Find first occurrence of any query word
-  let startIndex = -1
-  for (const word of queryWords) {
-    const index = lowerText.indexOf(word)
-    if (index !== -1 && (startIndex === -1 || index < startIndex)) {
-      startIndex = index
-    }
+export function extractSnippet(
+  text: string,
+  query: string,
+  maxLength = 100,
+): string {
+  const trimmedText = text ?? ''
+  const q = (query ?? '').toLowerCase().trim()
+
+  if (!trimmedText) return ''
+
+  const lower = trimmedText.toLowerCase()
+
+  // No query or not found → always prefix of text + "..."
+  if (!q || !lower.includes(q)) {
+    return trimmedText.slice(0, maxLength) + '...'
   }
-  
-  if (startIndex === -1) {
-    // No match found, return beginning
-    return text.slice(0, maxLength) + (text.length > maxLength ? '...' : '')
+
+  const index = lower.indexOf(q)
+
+  // Center snippet around match
+  const half = Math.floor((maxLength - q.length) / 2)
+  let start = Math.max(0, index - half)
+  let end = Math.min(trimmedText.length, start + maxLength)
+
+  let snippet = trimmedText.slice(start, end)
+
+  // If we cut off the end, add ellipsis ONCE
+  if (end < trimmedText.length) {
+    snippet += '...'
   }
-  
-  // Extract snippet around match
-  const contextBefore = Math.floor(maxLength / 2)
-  const contextAfter = Math.floor(maxLength / 2)
-  
-  let snippetStart = Math.max(0, startIndex - contextBefore)
-  let snippetEnd = Math.min(text.length, startIndex + queryWords[0].length + contextAfter)
-  
-  // Try to start at word boundary
-  while (snippetStart > 0 && text[snippetStart] !== ' ') {
-    snippetStart--
+
+  // Ensure we respect maxLength + 3
+  if (snippet.length > maxLength + 3) {
+    snippet = snippet.slice(0, maxLength) + '...'
   }
-  
-  // Try to end at word boundary
-  while (snippetEnd < text.length && text[snippetEnd] !== ' ') {
-    snippetEnd++
-  }
-  
-  let snippet = text.slice(snippetStart, snippetEnd)
-  
-  // Add ellipsis if needed
-  if (snippetStart > 0) snippet = '...' + snippet
-  if (snippetEnd < text.length) snippet = snippet + '...'
-  
+
   return snippet
 }
 

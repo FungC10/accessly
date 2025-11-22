@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     // Build where clause
     const where: any = {
       type: RoomType.PUBLIC, // Only public rooms
+      isPrivate: false, // Explicitly filter out private rooms
     }
 
     // Search filter (title, name, description)
@@ -120,10 +121,10 @@ export async function GET(request: Request) {
     const hasMore = rooms.length > limit
     const roomsToReturn = hasMore ? rooms.slice(0, limit) : rooms
     
-    // Map rooms to include last message
+    // Map rooms to include last message (defensive against undefined messages)
     const roomsWithLastMessage = roomsToReturn.map((room) => ({
       ...room,
-      lastMessage: room.messages[0] || null,
+      lastMessage: room.messages?.[0] || null,
     }))
     
     const nextCursor = hasMore && roomsToReturn.length > 0

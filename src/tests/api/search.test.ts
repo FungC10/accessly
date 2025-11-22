@@ -5,12 +5,12 @@ import { auth } from '@/lib/auth'
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    $queryRaw: vi.fn(),
     message: {
       findMany: vi.fn(),
     },
     room: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }))
@@ -48,20 +48,27 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
-    ;(prisma.$queryRaw as any).mockResolvedValue([
+    ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',
         content: 'This is about password reset',
         roomId: 'room-1',
-        roomTitle: 'Support',
-        userId: 'user-1',
-        userName: 'Alice',
-        userEmail: 'alice@example.com',
         createdAt: new Date(),
-        score: 0.95,
+        parentMessageId: null,
+        user: {
+          id: 'user-1',
+          name: 'Alice',
+          email: 'alice@example.com',
+        },
+        parentMessage: null,
       },
     ])
-    ;(prisma.message.findMany as any).mockResolvedValue([])
+    // Mock room search (first call - no roomId, so searches rooms)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([])
+    // Mock room title lookup (second call - for message room titles)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([
+      { id: 'room-1', title: 'Support' },
+    ])
 
     const request = new Request('http://localhost/api/search', {
       method: 'POST',
@@ -85,7 +92,6 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
-    ;(prisma.$queryRaw as any).mockResolvedValue([])
     ;(prisma.message.findMany as any).mockResolvedValue([])
     ;(prisma.room.findMany as any).mockResolvedValue([])
 
@@ -110,30 +116,34 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
-    ;(prisma.$queryRaw as any).mockResolvedValue([
+    ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',
         content: 'This is a reply',
         roomId: 'room-1',
-        roomTitle: 'Support',
-        userId: 'user-1',
-        userName: 'Alice',
-        userEmail: 'alice@example.com',
         parentMessageId: 'parent-1',
         createdAt: new Date(),
-        score: 0.95,
-      },
-    ])
-    ;(prisma.message.findMany as any).mockResolvedValue([
-      {
-        id: 'parent-1',
-        content: 'This is the parent message',
         user: {
-          id: 'user-2',
-          name: 'Bob',
-          email: 'bob@example.com',
+          id: 'user-1',
+          name: 'Alice',
+          email: 'alice@example.com',
+        },
+        parentMessage: {
+          id: 'parent-1',
+          content: 'This is the parent message',
+          user: {
+            id: 'user-2',
+            name: 'Bob',
+            email: 'bob@example.com',
+          },
         },
       },
+    ])
+    // Mock room search (first call - no roomId, so searches rooms)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([])
+    // Mock room title lookup (second call - for message room titles)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([
+      { id: 'room-1', title: 'Support' },
     ])
 
     const request = new Request('http://localhost/api/search', {
@@ -158,7 +168,6 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
-    ;(prisma.$queryRaw as any).mockResolvedValue([])
     ;(prisma.message.findMany as any).mockResolvedValue([])
     ;(prisma.room.findMany as any).mockResolvedValue([
       {
@@ -216,20 +225,27 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
-    ;(prisma.$queryRaw as any).mockResolvedValue([
+    ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',
         content: 'This is about password reset functionality',
         roomId: 'room-1',
-        roomTitle: 'Support',
-        userId: 'user-1',
-        userName: 'Alice',
-        userEmail: 'alice@example.com',
         createdAt: new Date(),
-        score: 0.95,
+        parentMessageId: null,
+        user: {
+          id: 'user-1',
+          name: 'Alice',
+          email: 'alice@example.com',
+        },
+        parentMessage: null,
       },
     ])
-    ;(prisma.message.findMany as any).mockResolvedValue([])
+    // Mock room search (first call - no roomId, so searches rooms)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([])
+    // Mock room title lookup (second call - for message room titles)
+    ;(prisma.room.findMany as any).mockResolvedValueOnce([
+      { id: 'room-1', title: 'Support' },
+    ])
 
     const request = new Request('http://localhost/api/search', {
       method: 'POST',
