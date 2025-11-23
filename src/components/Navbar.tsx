@@ -6,17 +6,32 @@ type Role = 'USER' | 'ADMIN'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SearchBar } from './SearchBar'
+import { useEffect, useState } from 'react'
 
 export function Navbar() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+
+  // Add timeout to prevent infinite loading
+  useEffect(() => {
+    if (status === 'loading') {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true)
+      }, 3000) // 3 second timeout
+      return () => clearTimeout(timer)
+    } else {
+      setLoadingTimeout(false)
+    }
+  }, [status])
 
   const handleSignOut = async () => {
     await signOut({ redirect: false })
     router.push('/')
   }
 
-  if (status === 'loading') {
+  // Show unauthenticated state if loading takes too long
+  if (status === 'loading' && !loadingTimeout) {
     return (
       <nav className="bg-slate-900 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-6 py-4">

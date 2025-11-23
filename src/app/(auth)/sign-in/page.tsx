@@ -3,11 +3,7 @@
 import { signIn } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 
-interface SignInPageProps {
-  searchParams?: Promise<{ callbackUrl?: string; error?: string }>
-}
-
-export default function SignInPage({ searchParams }: SignInPageProps) {
+export default function SignInPage() {
   const [callbackUrl, setCallbackUrl] = useState('/')
   const [error, setError] = useState<string | null>(null)
   const [hasGitHub, setHasGitHub] = useState(false)
@@ -16,13 +12,11 @@ export default function SignInPage({ searchParams }: SignInPageProps) {
 
   useEffect(() => {
     // Parse search params from URL (client-side)
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const cb = params.get('callbackUrl') || '/'
-      const err = params.get('error')
-      setCallbackUrl(cb)
-      if (err) setError(err)
-    }
+    const params = new URLSearchParams(window.location.search)
+    const cb = params.get('callbackUrl') || '/'
+    const err = params.get('error')
+    setCallbackUrl(cb)
+    if (err) setError(err)
 
     // Check for auth providers from environment (only on client)
     // In a real app, you'd fetch this from an API endpoint
