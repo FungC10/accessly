@@ -1,31 +1,32 @@
 # Accessly
 
+---
+
+## For recruiters / clients
+
+This project demonstrates my ability to design and build a real-world SaaS product end-to-end:
+
+- Realtime chat & presence powered by Socket.io  
+- Helpdesk ticket workflow with threaded conversations  
+- Public support form connected to ticket creation  
+- Role-based access control (admin, agent, client)  
+- Full-text search, observability tools, and audit logging  
+- Complete SSR + client-side interactivity using Next.js 15
+
+For a quick demonstration, see **DEMO_SCRIPT.md** — a 5–7 minute walkthrough I use in interviews.
+
+---
+
+## About This Project
+
+**Accessly** is the name of the codebase.  
+**SolaceDesk** is the product scenario used for demonstration.
+
+SolaceDesk is a helpdesk-style workspace where internal teams (engineering, design, product, support) collaborate with external clients inside shared rooms and ticket threads. The seed data reflects this scenario: team rooms, client rooms, and ticket rooms with realistic activity.
+
 Enterprise-grade realtime chat and helpdesk platform with role-based authentication, threaded conversations, ticket support, full-text search, observability dashboard, and comprehensive audit logging.
 
 Built with Next.js 15, TypeScript, Tailwind CSS, NextAuth, Prisma, PostgreSQL, and Socket.io.
-
-> **For recruiters / clients**
-> 
-> This project demonstrates my ability to design and build a production-grade SaaS product end-to-end:
-> 
-> - Realtime chat & presence with Socket.io
-> - Helpdesk-style ticket workflow with threaded replies
-> - Public support form → auto-created ticket rooms
-> - Full-text search, audit logging, and observability
-> 
-> A 5–7 minute interview demo flow is available in:  
-> **[DEMO_SCRIPT.md](./DEMO_SCRIPT.md)**.
-
-## Product Theme
-
-**Accessly** is the underlying codebase.  
-**SolaceDesk** is the product theme used for the demo:
-
-A helpdesk workspace combining internal teams (engineering, design, product, support)  
-and external clients (Acme, Starflow, Nova), connected through rooms and tickets.
-
-This ensures that when you see `#engineering`, `client-acme`, or ticket rooms,  
-you instantly understand the business scenario.
 
 ## 🚀 Quick Start (One-Click Demo)
 
@@ -48,7 +49,7 @@ That's it! The demo script will:
 - ✅ Start PostgreSQL and Redis in Docker containers
 - ✅ Create `.env` file with required variables (auto-generated)
 - ✅ Run database migrations
-- ✅ Seed realistic demo data with multiple teams, clients, tickets, and threaded message history
+- ✅ Seed realistic demo data with multiple teams, clients, ticket threads, and 150+ messages
 - ✅ Start the application at http://localhost:3000
 
 **Sign in with demo accounts:**
@@ -530,7 +531,7 @@ pnpm prisma migrate dev
 # Seed database (creates admin user, regular user, and sample rooms)
 pnpm db:seed
 
-# Or seed with realistic demo data (multiple teams, clients, tickets, threaded messages)
+# Or seed with realistic demo data (creates 5–8 users, a dozen rooms, and dozens of ticket replies)
 pnpm db:seed-demo
 ```
 
@@ -551,7 +552,7 @@ pnpm db:seed-demo
 4. ✅ Waits for services to be healthy
 5. ✅ Runs database migrations
 6. ✅ Generates Prisma client
-7. ✅ Seeds realistic demo data with multiple teams, clients, tickets, and threaded message history
+7. ✅ Seeds realistic demo data with multiple teams, clients, ticket threads, and 150+ messages
 8. ✅ Starts the application
 
 **Prerequisites:**
@@ -1104,7 +1105,7 @@ pnpm prisma:gen       # Generate Prisma client
 pnpm prisma:migrate   # Run migrations (dev)
 pnpm prisma:deploy    # Deploy migrations (production)
 pnpm db:seed          # Seed database (basic)
-pnpm db:seed-demo     # Seed database (realistic demo data)
+pnpm db:seed-demo     # Seed database (creates 5–8 users, a dozen rooms, and dozens of ticket replies)
 pnpm db:check         # Check user memberships
 pnpm db:diagnose      # Comprehensive diagnostics
 pnpm demo             # Quick demo: migrate + seed-demo + start
