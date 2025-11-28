@@ -945,16 +945,6 @@ export function ChatRoom({ roomId, roomName, isSwitchingRoom = false, onMessages
                         onReply={handleReply}
                       />
                     )}
-                    {/* Collapsed thread indicator */}
-                    {!expanded && replyCount > 0 && (
-                      <button
-                        onClick={() => toggleThread(roomId, m.id)}
-                        className="ml-8 mt-1 text-xs text-slate-400 hover:text-slate-300 flex items-center gap-1"
-                      >
-                        <span>▼</span>
-                        <span>Show {replyCount} {replyCount === 1 ? 'reply' : 'replies'}</span>
-                      </button>
-                    )}
                   </div>
                 )
               })
