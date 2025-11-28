@@ -40,12 +40,6 @@ export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, o
   const isUpdatingReactionsRef = useRef(false)
   const [testResult, setTestResult] = useState<string | null>(null)
 
-  // Safety check - should not happen if filtered properly, but defensive
-  if (!message.user?.id) {
-    console.warn('MessageItem received message without user.id:', message)
-    return null
-  }
-
   // Update local reactions when message prop changes (from socket updates)
   // But don't overwrite if we just updated it locally
   useEffect(() => {
@@ -60,6 +54,13 @@ export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, o
       setLocalReactions({})
     }
   }, [message.reactions, message.id])
+
+  // Safety check - should not happen if filtered properly, but defensive
+  // Must be after all hooks to comply with Rules of Hooks
+  if (!message.user?.id) {
+    console.warn('MessageItem received message without user.id:', message)
+    return null
+  }
 
   const isOwn = message.user.id === currentUserId
   const isDeleted = !!message.deletedAt
