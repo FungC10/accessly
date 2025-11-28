@@ -347,7 +347,8 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
               </p>
               {/* Edit/Delete/Reply buttons - positioned on the side */}
               <div className={`absolute ${isOwn ? '-left-12' : '-right-12'} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
-                {!isDeleted && onReply && (
+                {/* Only show reply button for root messages (not replies) - we only support 2 levels */}
+                {!isDeleted && onReply && !message.parentMessageId && (
                   <button
                     onClick={() => onReply(message.id)}
                     className="p-1 text-xs bg-slate-700 hover:bg-slate-600 rounded"
