@@ -36,9 +36,15 @@ export default async function Home({
   const cursor = params.cursor || null
   const limit = 20
 
-  // Fetch "My Rooms" - rooms user is a member of
+  // Fetch "My Rooms" - rooms user is a member of, EXCLUDING DMs and TICKETs
+  // Home page only shows PUBLIC and PRIVATE team/community rooms
   const myMemberships = await prisma.roomMember.findMany({
-    where: { userId: dbUser.id },
+    where: { 
+      userId: dbUser.id,
+      room: {
+        type: { in: [RoomType.PUBLIC, RoomType.PRIVATE] }, // Only PUBLIC and PRIVATE on home page
+      },
+    },
     include: {
       room: {
         select: {

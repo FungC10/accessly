@@ -10,7 +10,7 @@ interface RoomCardProps {
     title: string
     description?: string | null
     tags?: string[]
-    type: 'PUBLIC' | 'PRIVATE' | 'DM'
+    type: 'PUBLIC' | 'PRIVATE' | 'DM' | 'TICKET'
     isPrivate: boolean
     _count: {
       members: number
@@ -52,6 +52,8 @@ export function RoomCard({ room, role }: RoomCardProps) {
     ? { label: 'Public', color: 'bg-green-500/20 text-green-400 border-green-500/30' }
     : room.type === 'PRIVATE'
     ? { label: 'Private', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
+    : room.type === 'TICKET'
+    ? { label: 'Ticket', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
     : { label: 'DM', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
 
   const handleClick = () => {

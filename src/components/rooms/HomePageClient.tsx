@@ -12,7 +12,7 @@ interface Room {
   title: string
   description?: string | null
   tags?: string[]
-  type: 'PUBLIC' | 'PRIVATE' | 'DM'
+  type: 'PUBLIC' | 'PRIVATE' | 'DM' | 'TICKET'
   isPrivate: boolean
   _count: {
     members: number
