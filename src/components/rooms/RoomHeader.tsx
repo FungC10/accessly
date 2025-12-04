@@ -263,8 +263,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     }
   }
 
-  // Always show at least the roomName prop, even while loading
-  const displayName = roomDetails?.name ?? roomName ?? 'Room'
+  // For DM rooms, show other user's name/email; otherwise use room name/title
+  const displayName = roomDetails?.type === 'DM' && roomDetails?.otherUser
+    ? (roomDetails.otherUser.name || roomDetails.otherUser.email || roomName)
+    : (roomDetails?.title || roomDetails?.name || roomName || 'Room')
 
   const visibilityBadge = roomDetails?.type === 'PUBLIC'
     ? { label: 'Public', color: 'bg-green-500/20 text-green-400 border-green-500/30' }
@@ -282,7 +284,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     ? { label: 'RESOLVED', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
     : null
 
-  const canEdit = roomDetails?.userRole === RoomRole.OWNER
+  const canEdit = roomDetails?.type !== 'DM' && roomDetails?.userRole === RoomRole.OWNER
   // DM rooms cannot have invites (only 2 members)
   const canInvite = roomDetails?.type !== 'DM' && roomDetails?.type !== 'TICKET' && (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.userRole === RoomRole.MODERATOR)
   const canAssign = roomDetails?.type === 'TICKET' && roomDetails?.userRole === RoomRole.OWNER
@@ -333,8 +335,20 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             </form>
           ) : (
             <>
-              <h2 className="text-xl font-semibold mb-1">{displayName}</h2>
-              {roomDetails?.description && (
+              <div className="flex items-center gap-3 mb-1">
+                {roomDetails?.type === 'DM' && roomDetails?.otherUser?.image && (
+                  <img
+                    src={roomDetails.otherUser.image}
+                    alt={displayName}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <h2 className="text-xl font-semibold">{displayName}</h2>
+              </div>
+              {roomDetails?.type === 'DM' && roomDetails?.otherUser?.email && (
+                <p className="text-sm text-slate-400 mb-2">{roomDetails.otherUser.email}</p>
+              )}
+              {roomDetails?.type !== 'DM' && roomDetails?.description && (
                 <p className="text-sm text-slate-400 mb-2">{roomDetails.description}</p>
               )}
             </>
