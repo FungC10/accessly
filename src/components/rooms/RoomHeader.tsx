@@ -63,6 +63,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   const [assignToUserId, setAssignToUserId] = useState('')
   const [adminUsers, setAdminUsers] = useState<any[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   useEffect(() => {
     fetchRoomDetails()
@@ -226,6 +227,37 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     }
   }
 
+  const handleStatusChange = async (newStatus: 'OPEN' | 'WAITING' | 'RESOLVED') => {
+    if (!roomId || roomDetails?.status === newStatus) return
+
+    setIsUpdatingStatus(true)
+    try {
+      const response = await fetch(`/api/tickets/${roomId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      const data = await response.json()
+      if (data.ok) {
+        // Update local state immediately without refetch
+        setRoomDetails((prev) => {
+          if (!prev) return prev
+          return { ...prev, status: newStatus }
+        })
+      } else {
+        alert(data.message || 'Failed to update ticket status')
+      }
+    } catch (err) {
+      console.error('Error updating ticket status:', err)
+      alert('Failed to update ticket status')
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
   const handleExport = async () => {
     const format = prompt('Export format: json, html, or pdf?', 'json')
     if (!format || !['json', 'html', 'pdf'].includes(format.toLowerCase())) {
@@ -288,6 +320,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   // DM rooms cannot have invites (only 2 members)
   const canInvite = roomDetails?.type !== 'DM' && roomDetails?.type !== 'TICKET' && (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.userRole === RoomRole.MODERATOR)
   const canAssign = roomDetails?.type === 'TICKET' && roomDetails?.userRole === RoomRole.OWNER
+  // Admin can change ticket status
+  const canChangeStatus = roomDetails?.type === 'TICKET' && session?.user?.role === 'ADMIN'
 
   return (
     <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
@@ -407,11 +441,26 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
         <span className={`px-2 py-1 text-xs font-semibold rounded border ${visibilityBadge.color}`}>
           {visibilityBadge.label}
         </span>
-        {statusBadge && (
+        {roomDetails?.type === 'TICKET' && canChangeStatus ? (
+          /* Status dropdown for admins */
+          <select
+            value={roomDetails.status || 'OPEN'}
+            onChange={(e) => handleStatusChange(e.target.value as 'OPEN' | 'WAITING' | 'RESOLVED')}
+            disabled={isUpdatingStatus}
+            className={`px-2 py-1 text-xs font-semibold rounded border ${
+              statusBadge?.color || 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+            } bg-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <option value="OPEN">OPEN</option>
+            <option value="WAITING">WAITING</option>
+            <option value="RESOLVED">RESOLVED</option>
+          </select>
+        ) : statusBadge ? (
+          /* Read-only status badge for non-admins */
           <span className={`px-2 py-1 text-xs font-semibold rounded border ${statusBadge.color}`}>
             {statusBadge.label}
           </span>
-        )}
+        ) : null}
         {roomDetails?.tags && roomDetails.tags.length > 0 && (
           <>
             {roomDetails.tags.map((tag) => (
