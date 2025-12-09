@@ -650,6 +650,17 @@ async function main() {
   }
   console.log(`   ✅ All ${ticketRooms.length} ticket rooms have status and department`)
 
+  // Verify all ticket rooms have messages
+  for (let i = 0; i < ticketRooms.length; i++) {
+    const messageCount = await prisma.message.count({
+      where: { roomId: ticketRooms[i].id },
+    })
+    if (messageCount === 0) {
+      throw new Error(`❌ Ticket room ${ticketRooms[i].name} (index ${i}) has no messages`)
+    }
+    console.log(`   ✅ Ticket ${i + 1} (${ticketRooms[i].name}): ${messageCount} messages`)
+  }
+
   // Verify parentMessageId references are valid
   const messagesWithParent = await prisma.message.findMany({
     where: { parentMessageId: { not: null } },

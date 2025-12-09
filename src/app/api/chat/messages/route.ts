@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     // Verify the user exists in DB and get their actual ID
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true, email: true },
+      select: { id: true, email: true, role: true },
     })
 
     if (!dbUser) {
@@ -99,17 +99,24 @@ export async function GET(request: Request) {
       },
     })
 
+    // For TICKET rooms, admins can view messages even without membership
+    // For other rooms, membership is required
     if (!membership) {
-      console.error('GET /api/chat/messages - User not a member:', {
-        userId,
-        roomId,
-        sessionUserId: session.user.id,
-      })
-      return Response.json({
-        ok: false,
-        code: 'FORBIDDEN',
-        message: 'Not a member of this room',
-      }, { status: 200 }) // messages.test.ts expects 200 even on errors
+      if (room?.type === 'TICKET' && dbUser.role === 'ADMIN') {
+        // Admin can view ticket messages without membership
+        // Continue to fetch messages
+      } else {
+        console.error('GET /api/chat/messages - User not a member:', {
+          userId,
+          roomId,
+          sessionUserId: session.user.id,
+        })
+        return Response.json({
+          ok: false,
+          code: 'FORBIDDEN',
+          message: 'Not a member of this room',
+        }, { status: 200 }) // messages.test.ts expects 200 even on errors
+      }
     }
 
     // Check if room exists (for 404 case)
