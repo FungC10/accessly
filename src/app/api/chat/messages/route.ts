@@ -90,75 +90,31 @@ export async function GET(request: Request) {
     // Use DB user ID (source of truth)
     const userId = dbUser.id
 
-    // Access control logic:
-    // - For TICKET rooms: Admins always have access (bypass membership check)
-    // - For TICKET rooms: Non-admins must be members
-    // - For other rooms: Membership is always required
+    // Enforce invariant: For TICKET rooms, admins can access without membership
+    // Check membership (needed for non-admin ticket access and all non-ticket rooms)
+    const membership = await prisma.roomMember.findUnique({
+      where: {
+        userId_roomId: {
+          userId: userId, // Use DB user ID
+          roomId,
+        },
+      },
+    })
+
     const isTicketRoom = room.type === 'TICKET'
     const isAdmin = dbUser.role === Role.ADMIN
 
-    // DEBUG: Log access control check
-    console.log('🔍 GET /api/chat/messages - Access Control Check:', {
-      roomId,
-      roomType: room.type,
-      isTicketRoom,
-      userId,
-      userEmail: dbUser.email,
-      userRole: dbUser.role,
-      userRoleType: typeof dbUser.role,
-      RoleADMIN: Role.ADMIN,
-      RoleADMINType: typeof Role.ADMIN,
-      isAdmin,
-      roleComparison: dbUser.role === Role.ADMIN,
-      stringComparison: dbUser.role === 'ADMIN',
-    })
-
-    // For ticket rooms, admins bypass membership check
-    if (!isTicketRoom || !isAdmin) {
-      // Check if user is member of the room - use DB user ID
-      const membership = await prisma.roomMember.findUnique({
-        where: {
-          userId_roomId: {
-            userId: userId, // Use DB user ID
-            roomId,
-          },
-        },
-      })
-
-      console.log('🔍 GET /api/chat/messages - Membership Check:', {
-        roomId,
-        userId,
-        hasMembership: !!membership,
-        membershipRole: membership?.role,
-      })
-
-      if (!membership) {
-        console.error('❌ GET /api/chat/messages - Access DENIED:', {
-          userId,
-          roomId,
-          roomType: room.type,
-          isTicketRoom,
-          isAdmin,
-          userRole: dbUser.role,
-          sessionUserId: session.user.id,
-          reason: isTicketRoom && !isAdmin 
-            ? 'Ticket room but user is not admin' 
-            : 'Not a member of this room',
-        })
-        return Response.json({
-          ok: false,
-          code: 'FORBIDDEN',
-          message: 'Not a member of this room',
-        }, { status: 200 }) // messages.test.ts expects 200 even on errors
-      }
-    } else {
-      console.log('✅ GET /api/chat/messages - Access GRANTED (Admin for ticket):', {
-        roomId,
-        userId,
-        userRole: dbUser.role,
-        isTicketRoom,
-        isAdmin,
-      })
+    // Access control: Admin on ticket → always allowed, skip membership check
+    if (isTicketRoom && isAdmin) {
+      // Admin on ticket → always allowed, skip membership check
+      // Continue to fetch messages
+    } else if (!membership) {
+      // Not admin for ticket, or not a ticket room, and no membership → deny
+      return Response.json({
+        ok: false,
+        code: 'FORBIDDEN',
+        message: 'Not a member of this room',
+      }, { status: 200 }) // messages.test.ts expects 200 even on errors
     }
 
     // Fetch messages with pagination (tests expect simple structure)

@@ -191,7 +191,8 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
               }
               
               // If we have access (member or admin for tickets), select the room
-              if (room.isMember || (room.type === 'TICKET' && session?.user?.role === 'ADMIN')) {
+              // Note: API now returns isMember=true for admins on tickets
+              if (room.isMember) {
                 const displayName = room.name || room.title || 'General'
                 setRoomName(displayName)
                 setRoomId(initialRoomId)

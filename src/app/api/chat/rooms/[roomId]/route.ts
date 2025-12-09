@@ -186,6 +186,10 @@ export async function GET(
       }
     }
 
+    // For TICKET rooms, admins are considered "members" for access purposes
+    const isAdminForTicket = room.type === 'TICKET' && dbUser.role === Role.ADMIN
+    const effectiveIsMember = !!membership || isAdminForTicket
+
     return Response.json({
       ok: true,
       code: 'SUCCESS',
@@ -194,7 +198,7 @@ export async function GET(
         room: {
           ...room,
           userRole: membership?.role || null,
-          isMember: !!membership,
+          isMember: effectiveIsMember,
           owner: room.members[0]?.user || null,
           lastResponder,
           averageResponseTime,
