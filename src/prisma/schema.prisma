@@ -61,20 +61,21 @@ model VerificationToken {
 
 // --- App tables ---
 model Room {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  title       String        // Required display title
-  description String?       // Optional description
-  isPrivate   Boolean       @default(false)
-  type        RoomType      @default(PUBLIC)
-  status      TicketStatus? // For TICKET rooms: OPEN, WAITING, RESOLVED
-  tags        String[]      // Array of tags
-  creatorId   String?       // FK to User who created the room
-  creator     User?         @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: SetNull)
-  messages    Message[]
-  members     RoomMember[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id               String            @id @default(cuid())
+  name             String            @unique
+  title            String            // Required display title
+  description      String?           // Optional description
+  isPrivate        Boolean           @default(false)
+  type             RoomType          @default(PUBLIC)
+  status           TicketStatus?     // For TICKET rooms: OPEN, WAITING, RESOLVED
+  ticketDepartment TicketDepartment? // For TICKET rooms: IT_SUPPORT, BILLING, PRODUCT, GENERAL
+  tags             String[]          // Array of tags
+  creatorId        String?           // FK to User who created the room
+  creator          User?             @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  messages         Message[]
+  members          RoomMember[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   @@index([type, status])
 }
 
@@ -130,6 +131,13 @@ enum TicketStatus {
   OPEN
   WAITING
   RESOLVED
+}
+
+enum TicketDepartment {
+  IT_SUPPORT
+  BILLING
+  PRODUCT
+  GENERAL
 }
 
 // Audit log for admin/moderation actions

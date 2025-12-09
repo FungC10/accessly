@@ -1,4 +1,14 @@
 import { PrismaClient, Role, RoomRole, RoomType, TicketStatus } from '@prisma/client'
+
+// Workaround for TypeScript not picking up TicketDepartment from Prisma client
+// The enum exists in the generated client, but TypeScript cache may not see it
+const TicketDepartment = {
+  IT_SUPPORT: 'IT_SUPPORT',
+  BILLING: 'BILLING',
+  PRODUCT: 'PRODUCT',
+  GENERAL: 'GENERAL',
+} as const
+type TicketDepartment = typeof TicketDepartment[keyof typeof TicketDepartment]
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -28,77 +38,75 @@ const prisma = new PrismaClient()
  */
 
 // Sample messages for different room types
-const generalMessages = [
-  'Hey everyone! 👋',
-  'Good morning! How is everyone doing today?',
-  'Just checking in - hope everyone has a great week!',
-  'Anyone up for a quick chat?',
-  'I love this community! 💙',
-  'Thanks for the warm welcome everyone!',
-  'Has anyone tried the new feature yet?',
-  'Looking forward to the weekend!',
-  'Great to see so many active members here!',
-  'Thanks for all the help yesterday!',
-  'Just wanted to say hi and introduce myself 🎉',
-  'This is such a friendly community!',
-  'Hope you all have a wonderful day! ✨',
-  'I have a quick question - can anyone help?',
-  'That sounds great!',
-  'I totally agree with that',
-  'Thanks for sharing!',
+const announcementMessages = [
+  'New feature release: Dark mode is now live! 🎉',
+  'Reminder: All hands meeting this Friday at 2 PM',
+  'Important: Database maintenance scheduled for this weekend',
+  'Welcome to the team, everyone! Let\'s make this quarter great',
+  'Update: New customer onboarding process is now in effect',
+  'FYI: We\'ve updated our ticket SLA targets for Q1',
+  'Announcement: New support agent training program starting next week',
+  'Heads up: System will be in read-only mode during deployment',
+  'Great news: We hit 1000 resolved tickets this month! 🚀',
+  'Reminder: Please review the updated escalation procedures',
+  'Update: New integration with our billing system is live',
+  'Important: Customer data retention policy has been updated',
+  'Welcome message: Thanks for being part of SolaceDesk!',
+  'Quick update: Response time metrics are looking great this week',
+  'Announcement: New help center articles published',
+  'FYI: Holiday schedule posted in the calendar',
+  'Update: Team performance dashboard is now available',
 ]
 
-const techMessages = [
-  'Hey, has anyone tried the new Next.js 15 features?',
-  'I just finished a project using React Server Components - it\'s amazing! 🚀',
-  'Anyone working with TypeScript? I have a question about generics',
-  'Just deployed my app to production - feels great!',
-  'Does anyone have experience with Prisma migrations?',
-  'What\'s your favorite testing framework?',
-  'Has anyone used Docker for local development?',
-  'I love the new features in VS Code!',
-  'Anyone have tips for improving performance?',
-  'Just read an interesting article about microservices',
-  'Does anyone have recommendations for state management?',
-  'Learning about database indexing - it\'s fascinating!',
+const engineeringMessages = [
+  'We\'re seeing increased error rates on the login endpoint',
+  'Deployment to production completed successfully',
+  'Need to investigate the database query performance issue',
+  'Just fixed a critical bug in the payment processing flow',
+  'Anyone else seeing the Redis connection timeout errors?',
+  'New monitoring alerts configured for ticket creation API',
+  'Deployed hotfix for the password reset issue',
+  'Performance optimization on the message loading query',
+  'Investigating the spike in 500 errors from the support form',
+  'Database migration completed, all systems green',
+  'Need help debugging the WebSocket connection drops',
+  'Code review: Please review the new ticket assignment logic',
 ]
 
-const randomMessages = [
-  'What\'s everyone up to this weekend? 🎉',
-  'Just watched a great movie - anyone have recommendations?',
-  'I love coffee ☕ - anyone else?',
-  'What\'s your favorite programming language and why?',
-  'Just finished a great book!',
-  'What\'s the weather like where you are?',
-  'Anyone have good music recommendations?',
-  'What\'s everyone\'s favorite hobby?',
-  'Just had the best pizza ever 🍕',
-  'I\'m planning a trip - any travel tips?',
+const loungeMessages = [
+  'Great job on closing that tricky billing ticket! 🎉',
+  'Anyone up for lunch? Thinking about trying that new place',
+  'Coffee break? I\'m heading to the kitchen',
+  'Congrats to the team on hitting our response time goals!',
+  'Weekend plans? I\'m thinking of going hiking',
+  'Anyone else watching that new show? It\'s really good',
+  'Thanks for the help with that customer issue today!',
+  'Quick question: What\'s everyone\'s favorite productivity tool?',
+  'Celebrating: We just hit our monthly ticket resolution target!',
+  'Anyone want to grab coffee after work?',
 ]
 
-const privateMessages = [
-  'Hey team! 👋',
-  'Thanks for joining this private space',
-  'Let\'s discuss the project details here',
-  'I think we should focus on the MVP first',
-  'What do you all think about the timeline?',
-  'Great progress everyone!',
-  'Let\'s schedule a meeting for next week',
-  'I have some questions about the implementation',
-  'This is looking really good!',
-  'Thanks for all the hard work!',
+const leadershipMessages = [
+  'Let\'s review the high-priority tickets from this week',
+  'Need to discuss the escalation process for billing issues',
+  'Reviewing Q1 metrics: Response times are improving',
+  'Decision needed: Should we prioritize the dark mode feature?',
+  'Key insight: Most tickets are coming from the login flow',
+  'Action item: Update our ticket assignment algorithm',
+  'Review: Customer satisfaction scores are up 15% this month',
+  'Discussion: How should we handle the increased ticket volume?',
 ]
 
 const dmMessages = [
-  'Hey! How are you doing?',
-  'Thanks for reaching out!',
-  'I wanted to ask you about something',
-  'Do you have a moment to chat?',
-  'I appreciate your help with this',
-  'Thanks for the quick response!',
-  'Let me know what you think',
-  'That sounds good to me',
-  'Thanks again!',
+  'Can you take a look at the login ticket? Customer is waiting',
+  'I\'ll handle the billing question, thanks for flagging it',
+  'Quick question: Should we escalate this password reset ticket?',
+  'Thanks for helping with that feature request ticket',
+  'I\'ve assigned myself to the IT support ticket',
+  'Can you review my response to the billing question?',
+  'I\'ll follow up with the customer on the login issue',
+  'Thanks for the quick turnaround on that ticket',
+  'Let me know if you need help with any tickets',
 ]
 
 const ticketMessages = [
@@ -213,15 +221,18 @@ async function main() {
 
   // Validate: All room names must be unique
   const roomNames = [
-    '#general',
-    '#tech',
-    '#random',
-    '#private-team',
+    '#announcements',
+    '#engineering',
+    '#team-lounge',
+    '#leadership',
     `dm-${admin1.id}-${user1.id}`,
-    '#gaming',
-    '#music',
-    '#design',
+    '#customer-voice',
+    '#billing-internal',
+    '#ux-research',
     'ticket-login-issue',
+    'ticket-billing-question',
+    'ticket-feature-request',
+    'ticket-password-reset',
   ]
   if (new Set(roomNames).size !== roomNames.length) {
     throw new Error('❌ Duplicate room names found in seed data')
@@ -229,45 +240,45 @@ async function main() {
 
   const generalRoom = await prisma.room.create({
     data: {
-      name: '#general',
-      title: 'General Chat',
-      description: 'Welcome to our general discussion room! Say hi and introduce yourself.',
+      name: '#announcements',
+      title: 'Company Announcements',
+      description: 'Official updates from the SolaceDesk team and company-wide news.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin1.id,
-      tags: ['general', 'chat', 'community', 'welcome'],
+      tags: ['announcements', 'company', 'updates'],
     },
   })
 
   const techRoom = await prisma.room.create({
     data: {
-      name: '#tech',
-      title: 'Tech Talk',
-      description: 'Discuss technology, programming, and all things tech!',
+      name: '#engineering',
+      title: 'Engineering & Incidents',
+      description: 'Discuss bugs, deployments, and technical incidents related to the product.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin1.id,
-      tags: ['tech', 'programming', 'development', 'coding'],
+      tags: ['engineering', 'incidents', 'bugs', 'deployments'],
     },
   })
 
   const randomRoom = await prisma.room.create({
     data: {
-      name: '#random',
-      title: 'Random',
-      description: 'Off-topic discussions and random conversations.',
+      name: '#team-lounge',
+      title: 'Team Lounge',
+      description: 'Casual conversations, celebrations, and off-topic chat for the team.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin2.id,
-      tags: ['random', 'off-topic', 'fun', 'chat'],
+      tags: ['lounge', 'culture', 'off-topic'],
     },
   })
 
   const privateRoom = await prisma.room.create({
     data: {
-      name: '#private-team',
-      title: 'Private Team Room',
-      description: 'Private discussion space for team members only.',
+      name: '#leadership',
+      title: 'Leadership Sync',
+      description: 'Private space for leadership to review key tickets and product decisions.',
       type: RoomType.PRIVATE,
       isPrivate: true,
       creatorId: admin1.id,
@@ -279,7 +290,7 @@ async function main() {
     data: {
       name: `dm-${admin1.id}-${user1.id}`,
       title: `DM: ${admin1.name} & ${user1.name}`,
-      description: null,
+      description: 'Internal coordination about tickets and support issues.',
       type: RoomType.DM,
       isPrivate: true,
       creatorId: admin1.id,
@@ -290,52 +301,96 @@ async function main() {
   // Joinable public rooms (jacob is NOT a member yet)
   const gamingRoom = await prisma.room.create({
     data: {
-      name: '#gaming',
-      title: 'Gaming Hub',
-      description: 'Discuss your favorite games, share tips, and find teammates!',
+      name: '#customer-voice',
+      title: 'Customer Voice',
+      description: 'Share notable customer feedback, pain points, and success stories.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin2.id,
-      tags: ['gaming', 'esports', 'multiplayer'],
+      tags: ['customers', 'feedback', 'voice-of-customer'],
     },
   })
 
   const musicRoom = await prisma.room.create({
     data: {
-      name: '#music',
-      title: 'Music Lovers',
-      description: 'Share your favorite tracks, discover new artists, and talk about music!',
+      name: '#billing-internal',
+      title: 'Billing & Accounts (Internal)',
+      description: 'Internal discussions about billing edge cases, refunds, and account policies.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin2.id,
-      tags: ['music', 'artists', 'playlists'],
+      tags: ['billing', 'accounts', 'payments'],
     },
   })
 
   const designRoom = await prisma.room.create({
     data: {
-      name: '#design',
-      title: 'Design & Art',
-      description: 'Showcase your designs, get feedback, and discuss art trends.',
+      name: '#ux-research',
+      title: 'UX Research & Design',
+      description: 'Collect UX feedback from tickets and discuss design improvements.',
       type: RoomType.PUBLIC,
       isPrivate: false,
       creatorId: admin1.id,
-      tags: ['design', 'art', 'ui', 'ux'],
+      tags: ['ux', 'design', 'research'],
     },
   })
 
-  // TICKET room with proper status
-  const ticketRoom = await prisma.room.create({
+  // TICKET rooms with different departments
+  // Using 'as any' to work around TypeScript types not including ticketDepartment until migration is run
+  const ticketRoom1 = await prisma.room.create({
     data: {
       name: 'ticket-login-issue',
-      title: '[TICKET] Login issue after update',
+      title: '[TICKET][Login] Cannot log in after latest update',
       description: 'User cannot log in after the latest update',
       type: RoomType.TICKET,
-      isPrivate: false,
-      status: TicketStatus.OPEN, // Required for TICKET rooms
+      isPrivate: true,
+      status: TicketStatus.OPEN,
+      ticketDepartment: TicketDepartment.IT_SUPPORT,
       creatorId: user1.id,
       tags: ['ticket', 'bug', 'login'],
-    },
+    } as any,
+  })
+
+  const ticketRoom2 = await prisma.room.create({
+    data: {
+      name: 'ticket-billing-question',
+      title: '[TICKET][Billing] Question about subscription charges',
+      description: 'Question about monthly subscription charges',
+      type: RoomType.TICKET,
+      isPrivate: true,
+      status: TicketStatus.OPEN,
+      ticketDepartment: TicketDepartment.BILLING,
+      creatorId: user2.id,
+      tags: ['ticket', 'billing', 'subscription'],
+    } as any,
+  })
+
+  const ticketRoom3 = await prisma.room.create({
+    data: {
+      name: 'ticket-feature-request',
+      title: '[TICKET][Feature] Dark mode toggle request',
+      description: 'Request to add dark mode toggle in settings',
+      type: RoomType.TICKET,
+      isPrivate: true,
+      status: TicketStatus.WAITING,
+      ticketDepartment: TicketDepartment.PRODUCT,
+      creatorId: user3.id,
+      tags: ['ticket', 'feature', 'ui'],
+    } as any,
+  })
+
+  const ticketRoom4 = await prisma.room.create({
+    data: {
+      name: 'ticket-password-reset',
+      title: '[TICKET][Security] Need help resetting password',
+      description: 'Unable to reset password via email link',
+      type: RoomType.TICKET,
+      isPrivate: true,
+      status: TicketStatus.OPEN,
+      ticketDepartment: TicketDepartment.IT_SUPPORT,
+      creatorId: user1.id,
+      tags: ['ticket', 'password', 'security'],
+    } as any,
   })
 
   console.log(`✅ All ${roomNames.length} rooms created\n`)
@@ -410,14 +465,20 @@ async function main() {
   })
   console.log('   ✅ DM room members added')
 
-  // Ticket room: creator (user1) and assigned admin (admin1)
-  await prisma.roomMember.create({
-    data: { userId: user1.id, roomId: ticketRoom.id, role: RoomRole.MEMBER },
-  })
-  await prisma.roomMember.create({
-    data: { userId: admin1.id, roomId: ticketRoom.id, role: RoomRole.OWNER },
-  })
-  console.log('   ✅ Ticket room members added\n')
+  // Ticket rooms: creator and assigned admin
+  const ticketRooms = [ticketRoom1, ticketRoom2, ticketRoom3, ticketRoom4]
+  const ticketCreators = [user1, user2, user3, user1]
+  const ticketAdmins = [admin1, admin1, admin2, admin2]
+  
+  for (let i = 0; i < ticketRooms.length; i++) {
+    await prisma.roomMember.create({
+      data: { userId: ticketCreators[i].id, roomId: ticketRooms[i].id, role: RoomRole.MEMBER },
+    })
+    await prisma.roomMember.create({
+      data: { userId: ticketAdmins[i].id, roomId: ticketRooms[i].id, role: RoomRole.OWNER },
+    })
+  }
+  console.log(`   ✅ ${ticketRooms.length} ticket room members added\n`)
 
   // ============================================
   // STEP 4: Create Messages
@@ -425,7 +486,7 @@ async function main() {
   console.log('💬 STEP 4: Generating messages...')
   console.log('   (Keeping total messages between 50-120 for optimal performance)\n')
 
-  // General room: 15 messages
+  // Announcements room: 15 messages
   const generalMembers = [admin1, admin2, user1, user2, user3]
   const generalMessageIds: string[] = []
   for (let i = 0; i < 15; i++) {
@@ -434,15 +495,15 @@ async function main() {
       data: {
         roomId: generalRoom.id,
         userId: randomUser.id,
-        content: randomMessage(generalMessages),
+        content: randomMessage(announcementMessages),
         createdAt: randomPastWeekDate(),
       },
     })
     generalMessageIds.push(message.id)
   }
-  console.log(`   ✅ Generated 15 messages for General Chat`)
+  console.log(`   ✅ Generated 15 messages for Company Announcements`)
 
-  // Tech room: 12 messages
+  // Engineering room: 12 messages
   const techMembers = [admin1, admin2, user1, user2]
   const techMessageIds: string[] = []
   for (let i = 0; i < 12; i++) {
@@ -451,15 +512,15 @@ async function main() {
       data: {
         roomId: techRoom.id,
         userId: randomUser.id,
-        content: randomMessage(techMessages),
+        content: randomMessage(engineeringMessages),
         createdAt: randomPastWeekDate(),
       },
     })
     techMessageIds.push(message.id)
   }
-  console.log(`   ✅ Generated 12 messages for Tech Talk`)
+  console.log(`   ✅ Generated 12 messages for Engineering & Incidents`)
 
-  // Random room: 10 messages
+  // Team Lounge room: 10 messages
   const randomMembers = [user1, user2, user3, admin2]
   for (let i = 0; i < 10; i++) {
     const randomUser = randomMembers[Math.floor(Math.random() * randomMembers.length)]
@@ -467,14 +528,14 @@ async function main() {
       data: {
         roomId: randomRoom.id,
         userId: randomUser.id,
-        content: randomMessage(randomMessages),
+        content: randomMessage(loungeMessages),
         createdAt: randomPastWeekDate(),
       },
     })
   }
-  console.log(`   ✅ Generated 10 messages for Random`)
+  console.log(`   ✅ Generated 10 messages for Team Lounge`)
 
-  // Private room: 8 messages
+  // Leadership room: 8 messages
   const privateMembers = [admin1, admin2, user1]
   for (let i = 0; i < 8; i++) {
     const randomUser = privateMembers[Math.floor(Math.random() * privateMembers.length)]
@@ -482,12 +543,12 @@ async function main() {
       data: {
         roomId: privateRoom.id,
         userId: randomUser.id,
-        content: randomMessage(privateMessages),
+        content: randomMessage(leadershipMessages),
         createdAt: randomPastWeekDate(),
       },
     })
   }
-  console.log(`   ✅ Generated 8 messages for Private Team Room`)
+  console.log(`   ✅ Generated 8 messages for Leadership Sync`)
 
   // DM room: 6 messages
   const dmMembers = [admin1, user1]
@@ -504,33 +565,37 @@ async function main() {
   }
   console.log(`   ✅ Generated 6 messages for DM`)
 
-  // Ticket room: 1 main message + 5 replies (threaded)
-  const ticketMainMessage = await prisma.message.create({
-    data: {
-      roomId: ticketRoom.id,
-      userId: user1.id, // Creator
-      content: randomMessage(ticketMessages),
-      createdAt: randomPastWeekDate(),
-    },
-  })
-  console.log(`   ✅ Generated 1 main message for Ticket`)
-
-  // Create threaded replies (parentMessageId references main message in same room)
-  for (let i = 0; i < 5; i++) {
-    const replyUser = i % 2 === 0 ? admin1 : user1 // Alternate between admin and user
-    await prisma.message.create({
+  // Ticket rooms: 1 main message per ticket + some replies
+  const ticketMainMessages: string[] = []
+  for (let i = 0; i < ticketRooms.length; i++) {
+    const mainMessage = await prisma.message.create({
       data: {
-        roomId: ticketRoom.id, // Same room as parent
-        userId: replyUser.id,
-        content: randomMessage(ticketReplies),
-        parentMessageId: ticketMainMessage.id, // Valid reference to message in same room
+        roomId: ticketRooms[i].id,
+        userId: ticketCreators[i].id, // Creator
+        content: randomMessage(ticketMessages),
         createdAt: randomPastWeekDate(),
       },
     })
+    ticketMainMessages.push(mainMessage.id)
+    
+    // Add 2-3 replies per ticket
+    const replyCount = i === 0 ? 3 : 2 // First ticket gets 3 replies, others get 2
+    for (let j = 0; j < replyCount; j++) {
+      const replyUser = j % 2 === 0 ? ticketAdmins[i] : ticketCreators[i] // Alternate between admin and creator
+      await prisma.message.create({
+        data: {
+          roomId: ticketRooms[i].id,
+          userId: replyUser.id,
+          content: randomMessage(ticketReplies),
+          parentMessageId: mainMessage.id,
+          createdAt: randomPastWeekDate(),
+        },
+      })
+    }
   }
-  console.log(`   ✅ Generated 5 threaded replies for Ticket`)
+  console.log(`   ✅ Generated ${ticketRooms.length} ticket messages with replies`)
 
-  const totalMessages = 15 + 12 + 10 + 8 + 6 + 1 + 5 // = 57 messages
+  const totalMessages = 15 + 12 + 10 + 8 + 6 + ticketRooms.length + (3 + 2 + 2 + 2) // = 15+12+10+8+6+4+9 = 64 messages
   console.log(`\n   📊 Total messages: ${totalMessages} (within 50-120 range)`)
 
   // ============================================
@@ -559,7 +624,7 @@ async function main() {
   }
   
   // Verify each room has members
-  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, dmRoom, ...joinableRooms, ticketRoom]
+  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, dmRoom, ...joinableRooms, ...ticketRooms]
   for (const room of allRooms) {
     const roomMembers = await prisma.roomMember.count({
       where: { roomId: room.id },
@@ -570,15 +635,20 @@ async function main() {
     console.log(`   ✅ ${room.name}: ${roomMembers} members`)
   }
 
-  // Verify ticket room has status
-  const ticket = await prisma.room.findUnique({
-    where: { id: ticketRoom.id },
-    select: { type: true, status: true },
-  })
-  if (ticket?.type === RoomType.TICKET && !ticket.status) {
-    throw new Error(`❌ Ticket room ${ticketRoom.name} missing status`)
+  // Verify all ticket rooms have status and department
+  for (const ticketRoom of ticketRooms) {
+    const ticket = await prisma.room.findUnique({
+      where: { id: ticketRoom.id },
+      select: { type: true, status: true, ticketDepartment: true } as any,
+    }) as any
+    if (ticket?.type === RoomType.TICKET && !ticket.status) {
+      throw new Error(`❌ Ticket room ${ticketRoom.name} missing status`)
+    }
+    if (ticket?.type === RoomType.TICKET && !ticket.ticketDepartment) {
+      throw new Error(`❌ Ticket room ${ticketRoom.name} missing department`)
+    }
   }
-  console.log(`   ✅ Ticket room has status: ${ticket?.status}`)
+  console.log(`   ✅ All ${ticketRooms.length} ticket rooms have status and department`)
 
   // Verify parentMessageId references are valid
   const messagesWithParent = await prisma.message.findMany({
