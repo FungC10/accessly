@@ -122,47 +122,53 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
             return
           }
           
-          // Room not in user's list - try to join it (if public)
-          console.log('Room not in my rooms, attempting to join:', initialRoomId)
+          // Room not in user's list - check if we can access it
+          console.log('Room not in my rooms, checking access:', initialRoomId)
           try {
-            const joinResponse = await fetch(`/api/chat/rooms/${initialRoomId}/join`, {
-              method: 'POST',
-            })
+            // First, check if we can access the room (for tickets, this will check membership or admin status)
+            const roomResponse = await fetch(`/api/chat/rooms/${initialRoomId}`)
+            const roomData = await roomResponse.json()
             
-            const joinData = await joinResponse.json()
-            
-            if (joinResponse.ok && joinData.ok) {
-              // Successfully joined - refresh rooms list
-              console.log('✅ Successfully joined room, refreshing...')
-              const refreshResponse = await fetch('/api/chat/rooms')
-              const refreshData = await refreshResponse.json()
+            if (roomResponse.ok && roomData.ok && roomData.data?.room) {
+              const room = roomData.data.room
               
-              if (refreshData.ok && refreshData.data?.rooms) {
-                const updatedRooms = refreshData.data.rooms
-                setMyRooms(updatedRooms)
+              // If it's a public room, try to join it
+              if (room.type === 'PUBLIC') {
+                const joinResponse = await fetch(`/api/chat/rooms/${initialRoomId}/join`, {
+                  method: 'POST',
+                })
+                const joinData = await joinResponse.json()
                 
-                // Find the room we just joined
-                const joinedRoom = updatedRooms.find((r: Room) => r.id === initialRoomId)
-                if (joinedRoom) {
-                  setRoomName(joinedRoom.name || joinedRoom.title || 'General')
-                  setRoomId(initialRoomId)
-                  return
+                if (joinResponse.ok && joinData.ok) {
+                  // Successfully joined - refresh rooms list
+                  console.log('✅ Successfully joined room, refreshing...')
+                  const refreshResponse = await fetch('/api/chat/rooms')
+                  const refreshData = await refreshResponse.json()
+                  
+                  if (refreshData.ok && refreshData.data?.rooms) {
+                    const updatedRooms = refreshData.data.rooms
+                    setMyRooms(updatedRooms)
+                  }
                 }
               }
-            } else {
-              // Join failed (might be private or doesn't exist)
-              console.warn('Failed to join room:', joinData.message)
-              // Check if room exists and get its details
-              const roomResponse = await fetch(`/api/chat/rooms/${initialRoomId}`)
-              const roomData = await roomResponse.json()
               
-              if (roomResponse.ok && roomData.ok && roomData.data?.room) {
-                // Room exists but join failed - might be private
-                alert(`Cannot access room: ${joinData.message || 'Room is private or requires invitation'}`)
+              // If we have access (member or admin for tickets), select the room
+              if (room.isMember || (room.type === 'TICKET' && session?.user?.role === 'ADMIN')) {
+                const displayName = room.name || room.title || 'General'
+                setRoomName(displayName)
+                setRoomId(initialRoomId)
+                return
+              } else {
+                // No access
+                alert(`Cannot access room: ${room.type === 'TICKET' ? 'You do not have access to this ticket' : 'Room is private or requires invitation'}`)
               }
+            } else {
+              // Room doesn't exist or access denied
+              console.warn('Cannot access room:', roomData.message)
+              alert(`Cannot access room: ${roomData.message || 'Room not found or access denied'}`)
             }
           } catch (err) {
-            console.error('Error joining room:', err)
+            console.error('Error checking room access:', err)
           }
         }
         

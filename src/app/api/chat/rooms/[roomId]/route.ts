@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getMembership } from '@/lib/rbac'
 import { logAction } from '@/lib/audit'
-import { RoomRole } from '@prisma/client'
+import { RoomRole, Role } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,10 +27,10 @@ export async function GET(
 
     const { roomId } = params
 
-    // Verify user exists in DB
+    // Verify user exists in DB and get their role
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (!dbUser) {
@@ -52,6 +52,7 @@ export async function GET(
         tags: true,
         type: true,
         status: true,
+        ticketDepartment: true,
         isPrivate: true,
         createdAt: true,
         creator: {
@@ -97,12 +98,22 @@ export async function GET(
     // Get user's membership
     const membership = await getMembership(dbUser.id, roomId, prisma)
 
-    // Check if user has access (must be member for private rooms)
+    // Check if user has access
+    // For PRIVATE rooms: must be a member
+    // For TICKET rooms: must be a member OR be an ADMIN (admins can view all tickets)
     if (room.type === 'PRIVATE' && !membership) {
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
         message: 'You do not have access to this room',
+      }, { status: 403 })
+    }
+    
+    if (room.type === 'TICKET' && !membership && dbUser.role !== Role.ADMIN) {
+      return Response.json({
+        ok: false,
+        code: 'FORBIDDEN',
+        message: 'You do not have access to this ticket',
       }, { status: 403 })
     }
 

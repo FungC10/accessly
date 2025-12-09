@@ -10,6 +10,7 @@ interface Ticket {
   title: string
   description: string | null
   status: 'OPEN' | 'WAITING' | 'RESOLVED' | null
+  department: string | null
   createdAt: string
   updatedAt: string
   creator: {
@@ -75,6 +76,22 @@ export function TicketsList() {
         return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
       default:
         return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+    }
+  }
+
+  const getDepartmentLabel = (department: string | null) => {
+    if (!department) return 'General'
+    switch (department) {
+      case 'IT_SUPPORT':
+        return 'IT Support'
+      case 'BILLING':
+        return 'Billing'
+      case 'PRODUCT':
+        return 'Product'
+      case 'GENERAL':
+        return 'General'
+      default:
+        return department
     }
   }
 
@@ -160,6 +177,11 @@ export function TicketsList() {
                     {ticket.owner && (
                       <span className="ml-4">
                         Assigned to: {ticket.owner.name || ticket.owner.email}
+                      </span>
+                    )}
+                    {ticket.department && (
+                      <span className="ml-4">
+                        Department: {getDepartmentLabel(ticket.department)}
                       </span>
                     )}
                   </div>

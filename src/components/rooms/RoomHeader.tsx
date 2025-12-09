@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { RoomRole } from '@prisma/client'
 
 interface RoomHeaderProps {
@@ -18,6 +19,7 @@ interface RoomDetails {
   tags: string[]
   type: 'PUBLIC' | 'PRIVATE' | 'DM' | 'TICKET'
   status: 'OPEN' | 'WAITING' | 'RESOLVED' | null
+  ticketDepartment: 'IT_SUPPORT' | 'BILLING' | 'PRODUCT' | 'GENERAL' | null
   isPrivate: boolean
   userRole: RoomRole | null
   isMember: boolean
@@ -323,6 +325,22 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   // Admin can change ticket status
   const canChangeStatus = roomDetails?.type === 'TICKET' && session?.user?.role === 'ADMIN'
 
+  const getDepartmentLabel = (department: string | null) => {
+    if (!department) return 'General'
+    switch (department) {
+      case 'IT_SUPPORT':
+        return 'IT Support'
+      case 'BILLING':
+        return 'Billing'
+      case 'PRODUCT':
+        return 'Product'
+      case 'GENERAL':
+        return 'General'
+      default:
+        return department
+    }
+  }
+
   return (
     <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
       <div className="flex items-start justify-between mb-2">
@@ -377,7 +395,15 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                     className="w-8 h-8 rounded-full"
                   />
                 )}
-                <h2 className="text-xl font-semibold">{displayName}</h2>
+                <h2 className="text-xl font-semibold flex-1">{displayName}</h2>
+                {roomDetails?.type === 'TICKET' && (
+                  <Link
+                    href="/tickets"
+                    className="text-sm text-cyan-400 hover:text-cyan-300 underline whitespace-nowrap"
+                  >
+                    ← Back to tickets
+                  </Link>
+                )}
               </div>
               {roomDetails?.type === 'DM' && roomDetails?.otherUser?.email && (
                 <p className="text-sm text-slate-400 mb-2">{roomDetails.otherUser.email}</p>
@@ -483,6 +509,12 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {/* Ticket-specific info */}
       {roomDetails?.type === 'TICKET' && (
         <div className="mt-3 pt-3 border-t border-slate-800 space-y-2 text-sm">
+          {roomDetails?.ticketDepartment && (
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="font-medium text-slate-300">Department:</span>
+              <span>{getDepartmentLabel(roomDetails.ticketDepartment)}</span>
+            </div>
+          )}
           {roomDetails?.owner && (
             <div className="flex items-center gap-2 text-slate-400">
               <span className="font-medium text-slate-300">Assigned to:</span>
