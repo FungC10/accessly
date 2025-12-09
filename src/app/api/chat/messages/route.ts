@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Role } from '@prisma/client'
 import { MessageInput, Pagination } from '@/lib/validation'
 import { checkMessageRate } from '@/lib/rateLimit'
 import { getIO } from '@/lib/io'
@@ -89,27 +90,60 @@ export async function GET(request: Request) {
     // Use DB user ID (source of truth)
     const userId = dbUser.id
 
-    // Check if user is member of the room (required for all rooms) - use DB user ID
-    const membership = await prisma.roomMember.findUnique({
-      where: {
-        userId_roomId: {
-          userId: userId, // Use DB user ID
-          roomId,
-        },
-      },
+    // Access control logic:
+    // - For TICKET rooms: Admins always have access (bypass membership check)
+    // - For TICKET rooms: Non-admins must be members
+    // - For other rooms: Membership is always required
+    const isTicketRoom = room.type === 'TICKET'
+    const isAdmin = dbUser.role === Role.ADMIN
+
+    // DEBUG: Log access control check
+    console.log('🔍 GET /api/chat/messages - Access Control Check:', {
+      roomId,
+      roomType: room.type,
+      isTicketRoom,
+      userId,
+      userEmail: dbUser.email,
+      userRole: dbUser.role,
+      userRoleType: typeof dbUser.role,
+      RoleADMIN: Role.ADMIN,
+      RoleADMINType: typeof Role.ADMIN,
+      isAdmin,
+      roleComparison: dbUser.role === Role.ADMIN,
+      stringComparison: dbUser.role === 'ADMIN',
     })
 
-    // For TICKET rooms, admins can view messages even without membership
-    // For other rooms, membership is required
-    if (!membership) {
-      if (room?.type === 'TICKET' && dbUser.role === 'ADMIN') {
-        // Admin can view ticket messages without membership
-        // Continue to fetch messages
-      } else {
-        console.error('GET /api/chat/messages - User not a member:', {
+    // For ticket rooms, admins bypass membership check
+    if (!isTicketRoom || !isAdmin) {
+      // Check if user is member of the room - use DB user ID
+      const membership = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: userId, // Use DB user ID
+            roomId,
+          },
+        },
+      })
+
+      console.log('🔍 GET /api/chat/messages - Membership Check:', {
+        roomId,
+        userId,
+        hasMembership: !!membership,
+        membershipRole: membership?.role,
+      })
+
+      if (!membership) {
+        console.error('❌ GET /api/chat/messages - Access DENIED:', {
           userId,
           roomId,
+          roomType: room.type,
+          isTicketRoom,
+          isAdmin,
+          userRole: dbUser.role,
           sessionUserId: session.user.id,
+          reason: isTicketRoom && !isAdmin 
+            ? 'Ticket room but user is not admin' 
+            : 'Not a member of this room',
         })
         return Response.json({
           ok: false,
@@ -117,15 +151,14 @@ export async function GET(request: Request) {
           message: 'Not a member of this room',
         }, { status: 200 }) // messages.test.ts expects 200 even on errors
       }
-    }
-
-    // Check if room exists (for 404 case)
-    if (!room) {
-      return Response.json({
-        ok: false,
-        code: 'ROOM_NOT_FOUND',
-        message: 'Room not found',
-      }, { status: 200 }) // messages.test.ts expects 200 even on errors
+    } else {
+      console.log('✅ GET /api/chat/messages - Access GRANTED (Admin for ticket):', {
+        roomId,
+        userId,
+        userRole: dbUser.role,
+        isTicketRoom,
+        isAdmin,
+      })
     }
 
     // Fetch messages with pagination (tests expect simple structure)
