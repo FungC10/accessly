@@ -16,7 +16,7 @@ interface MessageItemProps {
       id: string
       name: string | null
       image: string | null
-    }
+    } | null // Allow null for system messages
   }
   currentUserId: string
   roomId?: string
@@ -55,14 +55,13 @@ export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, o
     }
   }, [message.reactions, message.id])
 
-  // Safety check - should not happen if filtered properly, but defensive
+  // Handle missing user gracefully - allow system messages
   // Must be after all hooks to comply with Rules of Hooks
-  if (!message.user?.id) {
-    console.warn('MessageItem received message without user.id:', message)
-    return null
-  }
-
-  const isOwn = message.user.id === currentUserId
+  const displayName = message.user?.name || message.user?.id || "System"
+  const userId = message.user?.id || null
+  
+  // If no user, treat as system message (not owned by current user)
+  const isOwn = userId ? userId === currentUserId : false
   const isDeleted = !!message.deletedAt
   const createdAt = new Date(message.createdAt)
   const timeAgo = formatTimeAgo(createdAt)
@@ -297,7 +296,7 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
         <div className="flex items-center gap-2 mb-1">
           {!isOwn && (
             <span className="text-sm font-medium text-slate-300">
-              {message.user.name || 'Anonymous'}
+              {displayName}
             </span>
           )}
           <span className="text-xs text-slate-500">{timeAgo}</span>

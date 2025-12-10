@@ -445,7 +445,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
 
       const res = await fetch(`/api/chat/messages?roomId=${roomId}&limit=50&cursor=${currentCursor}`)
       const json = await res.json()
-      const older: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+      // keep all messages; do not filter by user.id
+      const older: Msg[] = json.data?.messages ?? json.messages ?? []
 
       if (older.length === 0) return
 
@@ -479,7 +480,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         return
       }
       const json = await res.json()
-      const newer: Msg[] = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+      // keep all messages; do not filter by user.id
+      const newer: Msg[] = json.data?.messages ?? json.messages ?? []
 
       if (!newer.length) return
 
@@ -538,9 +540,11 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
           }
           return [base, ...(msg.replies || [])]
         })
-        msgs = flatMsgs.filter((m: Msg) => m.user?.id)
+        // keep all messages; do not filter by user.id
+        msgs = flatMsgs
       } else {
-        msgs = (json.data?.messages ?? json.messages ?? []).filter((m: Msg) => m.user?.id)
+        // keep all messages; do not filter by user.id
+        msgs = json.data?.messages ?? json.messages ?? []
       }
 
       // Store messages (even if empty); also set cursor & lastMessageId
@@ -902,8 +906,9 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
               </div>
             )}
             {(() => {
+              // do not filter by user.id — allow system messages
               // Filter to only root messages (no parentMessageId)
-              const rootMessages = messages.filter((m) => m.user?.id && !m.parentMessageId)
+              const rootMessages = messages.filter((m) => !m.parentMessageId)
               
               return rootMessages.map((m) => {
                 // Get replies for this message

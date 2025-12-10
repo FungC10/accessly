@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
  * List messages by roomId with cursor-based pagination
  */
 export async function GET(request: Request) {
+  console.log("🔥 GET /api/chat/messages HIT", new Date().toISOString());
   try {
     const session = await auth()
     if (!session?.user) {
