@@ -529,6 +529,32 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       }
       const json = await res.json()
       
+      // Check if API returned an error
+      if (!json.ok) {
+        console.error('❌ Messages API error:', {
+          code: json.code,
+          message: json.message,
+          roomId,
+          roomName,
+        })
+        setError(json.message || 'Failed to load messages')
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+        setIsLoadingMessages(false)
+        setIsRestoringScroll(false)
+        isRestoringScrollRef.current = false
+        return
+      }
+      
+      // Debug: Log successful response
+      console.log('✅ Messages API response:', {
+        ok: json.ok,
+        hasData: !!json.data,
+        hierarchicalCount: json.data?.hierarchicalMessages?.length ?? 0,
+        flatCount: json.data?.messages?.length ?? json.messages?.length ?? 0,
+        roomId,
+      })
+      
       // Use hierarchical messages if available, otherwise fall back to flat
       const hierarchical = json.data?.hierarchicalMessages
       if (hierarchical) {
