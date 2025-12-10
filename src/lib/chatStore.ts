@@ -11,7 +11,7 @@ export interface Message {
   editedAt?: string | null
   deletedAt?: string | null
   reactions?: Record<string, string[]> | null
-  user: { id: string; name: string | null; image: string | null }
+  user: { id: string; name: string | null; image: string | null } | null // Allow null for system messages
   replies?: Message[] // For hierarchical structure
 }
 
