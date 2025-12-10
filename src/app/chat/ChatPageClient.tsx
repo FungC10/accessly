@@ -43,6 +43,7 @@ interface ChatPageClientProps {
 
 interface Ticket {
   id: string
+  roomId: string // Explicitly include roomId (same as id, but makes it clear)
   name: string
   title: string
   status: 'OPEN' | 'WAITING' | 'RESOLVED' | null
