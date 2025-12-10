@@ -90,6 +90,11 @@ export async function GET(request: Request) {
     // Use DB user ID (source of truth)
     const userId = dbUser.id
 
+    // Thought experiment:
+    // Given: dbUser.role = Role.ADMIN, room.type = 'TICKET', membership = null
+    // Expect: this handler returns 200 and messages (if any exist),
+    //         and does NOT return 403 or 404 in this case.
+
     // Enforce invariant: For TICKET rooms, admins can access without membership
     // Check membership (needed for non-admin ticket access and all non-ticket rooms)
     const membership = await prisma.roomMember.findUnique({
@@ -104,12 +109,19 @@ export async function GET(request: Request) {
     const isTicketRoom = room.type === 'TICKET'
     const isAdmin = dbUser.role === Role.ADMIN
 
-    // Access control: Admin on ticket → always allowed, skip membership check
+    // FINAL ACCESS CONTROL DECISION:
+    // For the scenario: dbUser.role = Role.ADMIN, room.type = 'TICKET', membership = null
+    // - isTicketRoom = true (room.type === 'TICKET')
+    // - isAdmin = true (dbUser.role === Role.ADMIN)
+    // - membership = null
+    // - Condition: if (isTicketRoom && isAdmin) → TRUE → ALLOW, skip to message fetch
+    // - This branch does NOT return 403/404, so we continue to fetch messages
     if (isTicketRoom && isAdmin) {
       // Admin on ticket → always allowed, skip membership check
-      // Continue to fetch messages
+      // Continue to fetch messages (no return statement here)
     } else if (!membership) {
       // Not admin for ticket, or not a ticket room, and no membership → deny
+      // This branch is NOT taken for admin+ticket case
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
@@ -117,13 +129,15 @@ export async function GET(request: Request) {
       }, { status: 200 }) // messages.test.ts expects 200 even on errors
     }
 
-    // Fetch messages with pagination (tests expect simple structure)
+    // FINAL PRISMA QUERY FOR MESSAGES:
+    // For admin+ticket case: filters ONLY by roomId and deletedAt
+    // NO user/membership/assignee filters - returns ALL messages in the room
     const cursorObj = after ? { id: after } : undefined
     
     const allMessages = await prisma.message.findMany({
       where: {
-        roomId,
-        deletedAt: null, // Tests expect this filter
+        roomId, // Only filter by roomId - no user/membership filter
+        deletedAt: null, // Only exclude deleted messages
         ...(after && {
           createdAt: {
             gt: new Date(0), // For after parameter, tests expect createdAt filter
