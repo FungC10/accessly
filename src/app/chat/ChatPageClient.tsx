@@ -489,7 +489,8 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                         </div>
                       </div>
                     </button>
-                  ))}
+                  )
+                  })}
                 </div>
               )
             })()
