@@ -148,7 +148,10 @@ async function main() {
   await prisma.roomMember.deleteMany({})
   await prisma.room.deleteMany({})
   await prisma.user.deleteMany({})
-  console.log('✅ Cleared existing data\n')
+  console.log('✅ Cleared existing data')
+
+  // Update Department enum to ensure it has the correct values
+  // Note: This will be handled by Prisma schema sync, so we just ensure data is cleared
 
   // ============================================
   // STEP 1: Create Users
