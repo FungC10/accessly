@@ -62,7 +62,7 @@ dependencies:
 
 devDependencies:
   '@prisma/client':
-    specifier: ^5.9.1
+    specifier: ^5.22.0
     version: 5.22.0(prisma@5.22.0)
   '@testing-library/jest-dom':
     specifier: ^6.4.2

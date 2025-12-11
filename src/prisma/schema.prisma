@@ -149,10 +149,10 @@ enum TicketDepartment {
 }
 
 enum Department {
-  IT_SUPPORT
+  ENGINEERING
   BILLING
   PRODUCT
-  DESIGN
+  GENERAL
 }
 
 // Audit log for admin/moderation actions

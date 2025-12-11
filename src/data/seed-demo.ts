@@ -160,10 +160,10 @@ async function main() {
 
   // Local Department enum to match schema (before migration)
   const Department = {
-    IT_SUPPORT: 'IT_SUPPORT',
+    ENGINEERING: 'ENGINEERING',
     BILLING: 'BILLING',
     PRODUCT: 'PRODUCT',
-    DESIGN: 'DESIGN',
+    GENERAL: 'GENERAL',
   } as const
 
   const users = [
@@ -181,26 +181,93 @@ async function main() {
       department: null, // Admins don't have a department (see all rooms)
       image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=clara',
     },
+    // ENGINEERING department: 1 head + 2 members
     {
       email: 'jacob@solace.com',
       name: 'Jacob',
       role: Role.USER,
-      department: Department.IT_SUPPORT,
+      department: Department.ENGINEERING, // Department head
       image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jacob',
     },
+    {
+      email: 'alex@solace.com',
+      name: 'Alex',
+      role: Role.USER,
+      department: Department.ENGINEERING, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
+    },
+    {
+      email: 'sam@solace.com',
+      name: 'Sam',
+      role: Role.USER,
+      department: Department.ENGINEERING, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sam',
+    },
+    // BILLING department: 1 head + 2 members
     {
       email: 'may@solace.com',
       name: 'May',
       role: Role.USER,
-      department: Department.BILLING,
+      department: Department.BILLING, // Department head
       image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=may',
     },
+    {
+      email: 'lisa@solace.com',
+      name: 'Lisa',
+      role: Role.USER,
+      department: Department.BILLING, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisa',
+    },
+    {
+      email: 'tom@solace.com',
+      name: 'Tom',
+      role: Role.USER,
+      department: Department.BILLING, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tom',
+    },
+    // PRODUCT department: 1 head + 2 members
     {
       email: 'ethan@solace.com',
       name: 'Ethan',
       role: Role.USER,
-      department: Department.DESIGN,
+      department: Department.PRODUCT, // Department head
       image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ethan',
+    },
+    {
+      email: 'sarah@solace.com',
+      name: 'Sarah',
+      role: Role.USER,
+      department: Department.PRODUCT, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sarah',
+    },
+    {
+      email: 'david@solace.com',
+      name: 'David',
+      role: Role.USER,
+      department: Department.PRODUCT, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=david',
+    },
+    // GENERAL department: 1 head + 2 members
+    {
+      email: 'mike@solace.com',
+      name: 'Mike',
+      role: Role.USER,
+      department: Department.GENERAL, // Department head
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mike',
+    },
+    {
+      email: 'emma@solace.com',
+      name: 'Emma',
+      role: Role.USER,
+      department: Department.GENERAL, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=emma',
+    },
+    {
+      email: 'chris@solace.com',
+      name: 'Chris',
+      role: Role.USER,
+      department: Department.GENERAL, // Member
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=chris',
     },
   ]
 
@@ -223,7 +290,8 @@ async function main() {
     console.log(`   ✅ Created ${userData.role} user: ${userData.email}${userData.department ? ` (${userData.department})` : ''}`)
   }
 
-  const [admin1, admin2, user1, user2, user3] = createdUsers
+  const [admin1, admin2, user1, user2, user3, user4, user5, user6, user7, user8, user9, user10, user11, user12] = createdUsers
+  // Department heads: user1 (ENGINEERING), user4 (BILLING), user7 (PRODUCT), user10 (GENERAL)
   console.log(`✅ All ${createdUsers.length} users created`)
   console.log('   Password for all users: demo123\n')
 
@@ -233,15 +301,16 @@ async function main() {
   console.log('🏠 STEP 2: Creating rooms...')
 
   // Validate: All room names must be unique
+  // Note: admin1 and user1 IDs will be available after user creation
   const roomNames = [
     '#announcements',
     '#engineering',
     '#team-lounge',
     '#leadership',
-    `dm-${admin1.id}-${user1.id}`,
     '#customer-voice',
     '#billing-internal',
-    '#ux-research',
+    '#product',
+    '#general',
     'ticket-login-issue',
     'ticket-billing-question',
     'ticket-feature-request',
@@ -271,8 +340,8 @@ async function main() {
       description: 'Discuss bugs, deployments, and technical incidents related to the product.',
       type: RoomType.PUBLIC,
       isPrivate: false,
-      department: Department.IT_SUPPORT, // Department-specific
-      creatorId: admin1.id,
+      department: Department.ENGINEERING, // Department-specific
+      creatorId: user1.id, // Department head creates the room
       tags: ['engineering', 'incidents', 'bugs', 'deployments'],
     } as any,
   })
@@ -297,24 +366,15 @@ async function main() {
       description: 'Private space for leadership to review key tickets and product decisions.',
       type: RoomType.PRIVATE,
       isPrivate: true,
-      creatorId: admin1.id,
+      department: null, // PRIVATE rooms don't have department
+      creatorId: admin1.id, // Department head creates private room
       tags: ['private', 'team'],
-    },
+    } as any,
   })
 
-  const dmRoom = await prisma.room.create({
-    data: {
-      name: `dm-${admin1.id}-${user1.id}`,
-      title: `DM: ${admin1.name} & ${user1.name}`,
-      description: 'Internal coordination about tickets and support issues.',
-      type: RoomType.DM,
-      isPrivate: true,
-      creatorId: admin1.id,
-      tags: [],
-    },
-  })
+  // DM room removed per requirements (no DM feature)
 
-  // Joinable public rooms (jacob is NOT a member yet)
+  // Joinable public rooms
   const gamingRoom = await prisma.room.create({
     data: {
       name: '#customer-voice',
@@ -328,7 +388,7 @@ async function main() {
     } as any,
   })
 
-  const musicRoom = await prisma.room.create({
+  const billingRoom = await prisma.room.create({
     data: {
       name: '#billing-internal',
       title: 'Billing & Accounts (Internal)',
@@ -336,21 +396,34 @@ async function main() {
       type: RoomType.PUBLIC,
       isPrivate: false,
       department: Department.BILLING, // Department-specific
-      creatorId: admin2.id,
+      creatorId: user4.id, // Department head creates the room
       tags: ['billing', 'accounts', 'payments'],
     } as any,
   })
 
-  const designRoom = await prisma.room.create({
+  const productRoom = await prisma.room.create({
     data: {
-      name: '#ux-research',
-      title: 'UX Research & Design',
-      description: 'Collect UX feedback from tickets and discuss design improvements.',
+      name: '#product',
+      title: 'Product & Features',
+      description: 'Discuss product features, roadmaps, and user feedback.',
       type: RoomType.PUBLIC,
       isPrivate: false,
-      department: Department.DESIGN, // Department-specific
-      creatorId: admin1.id,
-      tags: ['ux', 'design', 'research'],
+      department: Department.PRODUCT, // Department-specific
+      creatorId: user7.id, // Department head creates the room
+      tags: ['product', 'features', 'roadmap'],
+    } as any,
+  })
+
+  const generalRoom2 = await prisma.room.create({
+    data: {
+      name: '#general',
+      title: 'General Discussion',
+      description: 'General team discussions and cross-department collaboration.',
+      type: RoomType.PUBLIC,
+      isPrivate: false,
+      department: Department.GENERAL, // Department-specific
+      creatorId: user10.id, // Department head creates the room
+      tags: ['general', 'discussion', 'collaboration'],
     } as any,
   })
 
@@ -421,7 +494,7 @@ async function main() {
 
   // PUBLIC_GLOBAL rooms (department === null): all users are members
   const publicGlobalRooms = [generalRoom, randomRoom, gamingRoom]
-  const allUsers = [admin1, admin2, user1, user2, user3]
+  const allUsers = [admin1, admin2, user1, user2, user3, user4, user5, user6, user7, user8, user9, user10, user11, user12]
   
   for (const room of publicGlobalRooms) {
     for (const user of allUsers) {
@@ -436,10 +509,10 @@ async function main() {
   }
   console.log(`   ✅ Added all ${allUsers.length} users to ${publicGlobalRooms.length} PUBLIC_GLOBAL rooms`)
 
-  // Department-specific rooms: auto-join users to their department room
-  // IT_SUPPORT room (#engineering)
-  const itSupportUsers = [user1] // Jacob
-  for (const user of itSupportUsers) {
+  // Department-specific PUBLIC rooms: auto-join users to their department room
+  // ENGINEERING room (#engineering): user1 (head), user2, user3 (members)
+  const engineeringUsers = [user1, user2, user3] // Jacob (head), Alex, Sam
+  for (const user of engineeringUsers) {
     await prisma.roomMember.create({
       data: {
         userId: user.id,
@@ -448,65 +521,89 @@ async function main() {
       },
     })
   }
-  // Also add admins (they see all rooms)
+  // Admins see all PUBLIC rooms, so add them
   for (const admin of [admin1, admin2]) {
     await prisma.roomMember.create({
       data: {
         userId: admin.id,
         roomId: techRoom.id,
-        role: admin.id === techRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+        role: RoomRole.MEMBER,
       },
     })
   }
-  console.log(`   ✅ Auto-joined IT_SUPPORT users to #engineering`)
+  console.log(`   ✅ Auto-joined ENGINEERING users to #engineering`)
 
-  // BILLING room (#billing-internal)
-  const billingUsers = [user2] // May
+  // BILLING room (#billing-internal): user4 (head), user5, user6 (members)
+  const billingUsers = [user4, user5, user6] // May (head), Lisa, Tom
   for (const user of billingUsers) {
     await prisma.roomMember.create({
       data: {
         userId: user.id,
-        roomId: musicRoom.id,
-        role: user.id === musicRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+        roomId: billingRoom.id,
+        role: user.id === billingRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
       },
     })
   }
-  // Also add admins
+  // Admins see all PUBLIC rooms
   for (const admin of [admin1, admin2]) {
     await prisma.roomMember.create({
       data: {
         userId: admin.id,
-        roomId: musicRoom.id,
-        role: admin.id === musicRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+        roomId: billingRoom.id,
+        role: RoomRole.MEMBER,
       },
     })
   }
   console.log(`   ✅ Auto-joined BILLING users to #billing-internal`)
 
-  // DESIGN room (#ux-research)
-  const designUsers = [user3] // Ethan
-  for (const user of designUsers) {
+  // PRODUCT room (#product): user7 (head), user8, user9 (members)
+  const productUsers = [user7, user8, user9] // Ethan (head), Sarah, David
+  for (const user of productUsers) {
     await prisma.roomMember.create({
       data: {
         userId: user.id,
-        roomId: designRoom.id,
-        role: user.id === designRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+        roomId: productRoom.id,
+        role: user.id === productRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
       },
     })
   }
-  // Also add admins
+  // Admins see all PUBLIC rooms
   for (const admin of [admin1, admin2]) {
     await prisma.roomMember.create({
       data: {
         userId: admin.id,
-        roomId: designRoom.id,
-        role: admin.id === designRoom.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+        roomId: productRoom.id,
+        role: RoomRole.MEMBER,
       },
     })
   }
-  console.log(`   ✅ Auto-joined DESIGN users to #ux-research`)
+  console.log(`   ✅ Auto-joined PRODUCT users to #product`)
 
-  // Private room: admin1 (owner), admin2, user1 (members)
+  // GENERAL room (#general): user10 (head), user11, user12 (members)
+  const generalDeptUsers = [user10, user11, user12] // Mike (head), Emma, Chris
+  for (const user of generalDeptUsers) {
+    await prisma.roomMember.create({
+      data: {
+        userId: user.id,
+        roomId: generalRoom2.id,
+        role: user.id === generalRoom2.creatorId ? RoomRole.OWNER : RoomRole.MEMBER,
+      },
+    })
+  }
+  // Admins see all PUBLIC rooms
+  for (const admin of [admin1, admin2]) {
+    await prisma.roomMember.create({
+      data: {
+        userId: admin.id,
+        roomId: generalRoom2.id,
+        role: RoomRole.MEMBER,
+      },
+    })
+  }
+  console.log(`   ✅ Auto-joined GENERAL users to #general`)
+
+  // PRIVATE room: Only explicitly invited members (admins don't auto-see)
+  // Private room: admin1 (owner/creator), admin2, user1 (invited members)
   await prisma.roomMember.create({
     data: { userId: admin1.id, roomId: privateRoom.id, role: RoomRole.OWNER },
   })
@@ -516,20 +613,11 @@ async function main() {
   await prisma.roomMember.create({
     data: { userId: user1.id, roomId: privateRoom.id, role: RoomRole.MODERATOR },
   })
-  console.log('   ✅ Private room members added')
+  console.log('   ✅ Private room members added (invite-only, admins not auto-added)')
 
-  // DM room: admin1 and user1 (both members)
-  await prisma.roomMember.create({
-    data: { userId: admin1.id, roomId: dmRoom.id, role: RoomRole.MEMBER },
-  })
-  await prisma.roomMember.create({
-    data: { userId: user1.id, roomId: dmRoom.id, role: RoomRole.MEMBER },
-  })
-  console.log('   ✅ DM room members added')
-
-  // Ticket rooms: creator and assigned admin
+  // Ticket rooms: creator and assigned admin (tickets unchanged per requirements)
   const ticketRooms = [ticketRoom1, ticketRoom2, ticketRoom3, ticketRoom4]
-  const ticketCreators = [user1, user2, user3, user1]
+  const ticketCreators = [user1, user4, user7, user1] // Updated to use correct user indices
   const ticketAdmins = [admin1, admin1, admin2, admin2]
   
   for (let i = 0; i < ticketRooms.length; i++) {
@@ -549,7 +637,7 @@ async function main() {
   console.log('   (Keeping total messages between 50-120 for optimal performance)\n')
 
   // Announcements room: 15 messages
-  const generalMembers = [admin1, admin2, user1, user2, user3]
+  const generalMembers = allUsers.slice(0, 8) // Use first 8 users for variety
   const generalMessageIds: string[] = []
   for (let i = 0; i < 15; i++) {
     const randomUser = generalMembers[Math.floor(Math.random() * generalMembers.length)]
@@ -565,8 +653,8 @@ async function main() {
   }
   console.log(`   ✅ Generated 15 messages for Company Announcements`)
 
-  // Engineering room: 12 messages
-  const techMembers = [admin1, admin2, user1, user2]
+  // Engineering room: 12 messages (ENGINEERING department users)
+  const techMembers = [user1, user2, user3, admin1] // Engineering dept + admin
   const techMessageIds: string[] = []
   for (let i = 0; i < 12; i++) {
     const randomUser = techMembers[Math.floor(Math.random() * techMembers.length)]
@@ -583,7 +671,7 @@ async function main() {
   console.log(`   ✅ Generated 12 messages for Engineering & Incidents`)
 
   // Team Lounge room: 10 messages
-  const randomMembers = [user1, user2, user3, admin2]
+  const randomMembers = allUsers.slice(0, 6) // Mix of users
   for (let i = 0; i < 10; i++) {
     const randomUser = randomMembers[Math.floor(Math.random() * randomMembers.length)]
     await prisma.message.create({
@@ -597,8 +685,8 @@ async function main() {
   }
   console.log(`   ✅ Generated 10 messages for Team Lounge`)
 
-  // Leadership room: 8 messages
-  const privateMembers = [admin1, admin2, user1]
+  // Leadership room: 8 messages (only members can see)
+  const privateMembers = [admin1, admin2, user1] // Only invited members
   for (let i = 0; i < 8; i++) {
     const randomUser = privateMembers[Math.floor(Math.random() * privateMembers.length)]
     await prisma.message.create({
@@ -612,20 +700,7 @@ async function main() {
   }
   console.log(`   ✅ Generated 8 messages for Leadership Sync`)
 
-  // DM room: 6 messages
-  const dmMembers = [admin1, user1]
-  for (let i = 0; i < 6; i++) {
-    const randomUser = dmMembers[Math.floor(Math.random() * dmMembers.length)]
-    await prisma.message.create({
-      data: {
-        roomId: dmRoom.id,
-        userId: randomUser.id,
-        content: randomMessage(dmMessages),
-        createdAt: randomPastWeekDate(),
-      },
-    })
-  }
-  console.log(`   ✅ Generated 6 messages for DM`)
+  // DM room removed per requirements
 
   // Ticket rooms: 1 main message per ticket + some replies
   const ticketMainMessages: string[] = []
@@ -657,7 +732,7 @@ async function main() {
   }
   console.log(`   ✅ Generated ${ticketRooms.length} ticket messages with replies`)
 
-  const totalMessages = 15 + 12 + 10 + 8 + 6 + ticketRooms.length + (3 + 2 + 2 + 2) // = 15+12+10+8+6+4+9 = 64 messages
+  const totalMessages = 15 + 12 + 10 + 8 + ticketRooms.length + (3 + 2 + 2 + 2) // = 15+12+10+8+4+9 = 58 messages
   console.log(`\n   📊 Total messages: ${totalMessages} (within 50-120 range)`)
 
   // ============================================
@@ -686,7 +761,7 @@ async function main() {
   }
   
   // Verify each room has members
-  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, dmRoom, gamingRoom, musicRoom, designRoom, ...ticketRooms]
+  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, gamingRoom, billingRoom, productRoom, generalRoom2, ...ticketRooms]
   for (const room of allRooms) {
     const roomMembers = await prisma.roomMember.count({
       where: { roomId: room.id },
@@ -766,9 +841,11 @@ async function main() {
   console.log('\n📋 Demo Accounts:')
   console.log('   Admin: admin@solace.com / demo123')
   console.log('   Admin: clara@solace.com / demo123')
-  console.log('   User:  jacob@solace.com / demo123')
-  console.log('   User:  may@solace.com / demo123')
-  console.log('   User:  ethan@solace.com / demo123')
+  console.log('   ENGINEERING: jacob@solace.com (head), alex@solace.com, sam@solace.com')
+  console.log('   BILLING: may@solace.com (head), lisa@solace.com, tom@solace.com')
+  console.log('   PRODUCT: ethan@solace.com (head), sarah@solace.com, david@solace.com')
+  console.log('   GENERAL: mike@solace.com (head), emma@solace.com, chris@solace.com')
+  console.log('   Password for all: demo123')
   console.log('\n🎉 You can now sign in with any account and see the chat history!')
   console.log('\n💡 Next steps:')
   console.log('   - Sign in at http://localhost:3000')

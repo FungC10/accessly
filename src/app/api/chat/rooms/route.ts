@@ -71,9 +71,14 @@ export async function GET(request: Request) {
     const isAdmin = dbUser.role === 'ADMIN'
 
     // Fetch rooms where user is a member (use DB user ID)
+    // PRIVATE rooms: only visible to members (admins don't auto-see)
+    // PUBLIC rooms: visible based on department rules below
     const memberships = await prisma.roomMember.findMany({
       where: {
         userId: userId, // Use DB user ID, not session user ID
+        room: {
+          type: { in: ['PUBLIC', 'PRIVATE'] }, // Only PUBLIC and PRIVATE rooms
+        },
       },
       include: {
         room: {
@@ -85,6 +90,7 @@ export async function GET(request: Request) {
             tags: true,
             type: true,
             isPrivate: true,
+            department: true,
             createdAt: true,
             creator: {
               select: {
@@ -117,24 +123,6 @@ export async function GET(request: Request) {
                 },
               },
             },
-            members: {
-              where: {
-                userId: {
-                  not: userId, // For DM rooms, get the other user
-                },
-              },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                  },
-                },
-              },
-              take: 1, // DM rooms should only have 1 other member
-            },
           },
         },
       },
@@ -145,89 +133,109 @@ export async function GET(request: Request) {
       },
     })
 
+    // Start with rooms user is a member of
     let rooms = memberships
       .map((m) => ({
         ...m.room,
         role: m.role,
         lastMessage: m.room.messages[0] || null,
-        // For DM rooms, include the other user (though DMs are filtered out below)
-        otherUser: m.room.type === 'DM' && m.room.members[0] ? m.room.members[0].user : null,
+        otherUser: null,
       }))
-      // Filter out DM and TICKET rooms - DMs are removed from UI, tickets are only accessible via /tickets page
-      .filter((r) => r.type === 'PUBLIC' || r.type === 'PRIVATE')
+      // Filter: PRIVATE rooms only if user is a member (already handled by query)
+      // PUBLIC rooms: filter by department rules below
+      .filter((r) => {
+        if (r.type === 'PRIVATE') {
+          // PRIVATE rooms: only if user is a member (already in memberships)
+          return true
+        }
+        if (r.type === 'PUBLIC') {
+          if (isAdmin) {
+            // Admins see all PUBLIC rooms
+            return true
+          }
+          // Non-admins: only see PUBLIC rooms matching their department or PUBLIC_GLOBAL
+          return r.department === dbUser.department || r.department === null
+        }
+        return false
+      })
 
-    // For non-admins: also include department rooms and PUBLIC_GLOBAL rooms they're not members of
-    // For admins: show all rooms (already handled by memberships above, but we can add non-member rooms too)
-    if (!isAdmin && dbUser.department) {
-      const memberRoomIds = new Set(rooms.map((r) => r.id))
-      
-      const additionalRooms = await prisma.room.findMany({
-        where: {
-          type: { in: ['PUBLIC', 'PRIVATE'] },
-          OR: [
-            { department: dbUser.department }, // User's department
-            { department: null }, // PUBLIC_GLOBAL
-          ],
-          // Exclude rooms user is already a member of
-          id: {
-            notIn: Array.from(memberRoomIds),
+    // For non-admins: also include PUBLIC rooms matching their department that they're not members of
+    // For admins: also include all PUBLIC rooms they're not members of
+    const memberRoomIds = new Set(rooms.map((r) => r.id))
+    
+    const additionalRooms = await prisma.room.findMany({
+      where: {
+        type: 'PUBLIC', // Only PUBLIC rooms (PRIVATE rooms are invite-only)
+        isPrivate: false,
+        // Exclude rooms user is already a member of
+        id: {
+          notIn: Array.from(memberRoomIds),
+        },
+        // For admins: show all PUBLIC rooms
+        // For non-admins: only show rooms matching their department or PUBLIC_GLOBAL
+        ...(isAdmin
+          ? {}
+          : {
+              OR: [
+                { department: dbUser.department }, // User's department
+                { department: null }, // PUBLIC_GLOBAL
+              ],
+            }),
+      },
+      select: {
+        id: true,
+        name: true,
+        title: true,
+        description: true,
+        tags: true,
+        type: true,
+        isPrivate: true,
+        department: true,
+        createdAt: true,
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
           },
         },
-        select: {
-          id: true,
-          name: true,
-          title: true,
-          description: true,
-          tags: true,
-          type: true,
-          isPrivate: true,
-          createdAt: true,
-          department: true,
-          creator: {
-            select: {
-              id: true,
-              name: true,
-              image: true,
-            },
+        _count: {
+          select: {
+            members: true,
+            messages: true,
           },
-          _count: {
-            select: {
-              members: true,
-              messages: true,
-            },
+        },
+        messages: {
+          take: 1,
+          orderBy: {
+            createdAt: 'desc',
           },
-          messages: {
-            take: 1,
-            orderBy: {
-              createdAt: 'desc',
-            },
-            select: {
-              id: true,
-              content: true,
-              createdAt: true,
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  image: true,
-                },
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
               },
             },
           },
         },
-      })
+      },
+    })
 
-      // Add these rooms with null role (not a member yet, but visible due to department match)
-      rooms = [
-        ...rooms,
-        ...additionalRooms.map((r) => ({
-          ...r,
-          role: null,
-          lastMessage: r.messages[0] || null,
-          otherUser: null,
-        })),
-      ]
-    }
+    // Add these rooms with null role (not a member yet, but visible due to department match or admin status)
+    rooms = [
+      ...rooms,
+      ...additionalRooms.map((r) => ({
+        ...r,
+        role: null,
+        lastMessage: r.messages[0] || null,
+        otherUser: null,
+      })),
+    ]
 
     console.log('GET /api/chat/rooms - Found', rooms.length, 'rooms for user', session.user.id, '(filtered: DM and TICKET excluded)')
 
