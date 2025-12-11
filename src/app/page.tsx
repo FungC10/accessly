@@ -206,14 +206,10 @@ export default async function Home({
     })),
   ]
 
-  // Get all unique tags from public rooms for filter chips
-  const allPublicRooms = await prisma.room.findMany({
-    where: { type: RoomType.PUBLIC },
-    select: { tags: true },
-  })
+  // Get all unique tags from rooms the user can see (for filter chips)
   const allTags = Array.from(
     new Set(
-      allPublicRooms.flatMap((r) => r.tags || []).filter((t) => t.length > 0)
+      myRooms.flatMap((r) => r.tags || []).filter((t) => t.length > 0)
     )
   ).sort()
 
