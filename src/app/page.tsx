@@ -152,49 +152,49 @@ export default async function Home({
             ],
           }),
     },
-      select: {
-        id: true,
-        name: true,
-        title: true,
-        description: true,
-        tags: true,
-        type: true,
-        isPrivate: true,
-        createdAt: true,
-        department: true,
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
+    select: {
+      id: true,
+      name: true,
+      title: true,
+      description: true,
+      tags: true,
+      type: true,
+      isPrivate: true,
+      createdAt: true,
+      department: true,
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
         },
-        _count: {
-          select: {
-            members: true,
-            messages: true,
-          },
+      },
+      _count: {
+        select: {
+          members: true,
+          messages: true,
         },
-        messages: {
-          take: 1,
-          orderBy: {
-            createdAt: 'desc',
-          },
-          select: {
-            id: true,
-            content: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-                image: true,
-              },
+      },
+      messages: {
+        take: 1,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
             },
           },
         },
       },
-    })
+    },
+  })
 
     // Add these rooms with null role (not a member yet, but visible due to department match)
     myRooms = [
