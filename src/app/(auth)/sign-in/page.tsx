@@ -13,6 +13,10 @@ export default function SignInPage() {
   const [hasGitHub, setHasGitHub] = useState(false)
   const [hasEmail, setHasEmail] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showMagicLinkInput, setShowMagicLinkInput] = useState(false)
+  const [magicLinkEmail, setMagicLinkEmail] = useState('')
+  const [isSendingMagicLink, setIsSendingMagicLink] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
 
   useEffect(() => {
     // Parse search params from URL (client-side)
@@ -72,11 +76,33 @@ export default function SignInPage() {
     signIn('github', { callbackUrl })
   }
 
-  const handleEmailSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
-    await signIn('email', { email, callbackUrl })
+  const handleMagicLinkClick = () => {
+    setShowMagicLinkInput(true)
+  }
+
+  const handleMagicLinkSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    
+    if (!magicLinkEmail || !magicLinkEmail.includes('@')) {
+      setError('Please enter a valid email address')
+      return
+    }
+
+    setIsSendingMagicLink(true)
+    setError(null)
+
+    try {
+      await signIn('email', { email: magicLinkEmail, callbackUrl, redirect: false })
+      // NextAuth will handle the email sending
+      // Show success message
+      setMagicLinkSent(true)
+      setError(null)
+    } catch (err) {
+      console.error('Magic link error:', err)
+      setError('Failed to send magic link. Please try again.')
+    } finally {
+      setIsSendingMagicLink(false)
+    }
   }
 
   return (
@@ -196,21 +222,71 @@ export default function SignInPage() {
             )}
 
             {hasEmail && (
-              <form onSubmit={handleEmailSignIn} className="space-y-3">
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="Enter your email (magic link)"
-                  required
-                  className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="w-full px-4 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-sm"
-                >
-                  Sign in with Email (Magic Link)
-                </button>
-              </form>
+              <div className="space-y-3">
+                {!showMagicLinkInput ? (
+                  <button
+                    onClick={handleMagicLinkClick}
+                    className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors flex items-center justify-center gap-3"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Sign in with Email (Magic Link)
+                  </button>
+                ) : magicLinkSent ? (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-sm text-green-400">
+                    <p className="font-medium mb-1">Magic link sent!</p>
+                    <p className="text-xs text-green-300">
+                      Check your email ({magicLinkEmail}) for the sign-in link.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowMagicLinkInput(false)
+                        setMagicLinkSent(false)
+                        setMagicLinkEmail('')
+                      }}
+                      className="mt-2 text-xs text-green-300 hover:text-green-200 underline"
+                    >
+                      Use a different email
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={magicLinkEmail}
+                      onChange={(e) => setMagicLinkEmail(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleMagicLinkSubmit()
+                        }
+                      }}
+                      placeholder="Enter your email"
+                      required
+                      className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleMagicLinkSubmit}
+                      disabled={isSendingMagicLink || !magicLinkEmail}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      type="button"
+                      title="Send magic link"
+                    >
+                      {isSendingMagicLink ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
