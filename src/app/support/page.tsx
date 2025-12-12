@@ -1,20 +1,53 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 
 export default function SupportPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [isInternalUser, setIsInternalUser] = useState<boolean | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     subject: '',
     message: '',
+    department: 'GENERAL' as 'IT_SUPPORT' | 'BILLING' | 'PRODUCT' | 'GENERAL',
   })
+
+  // Check if logged-in user is internal and redirect them
+  useEffect(() => {
+    if (session?.user?.email) {
+      // Pre-fill form with logged-in user's info
+      setFormData(prev => ({
+        ...prev,
+        name: session.user.name || prev.name,
+        email: session.user.email || prev.email,
+      }))
+
+      // Check if user is internal
+      fetch('/api/user/check-internal')
+        .then(res => res.json())
+        .then(data => {
+          if (data.isInternal) {
+            // Redirect internal employees immediately
+            router.push('/')
+          } else {
+            setIsInternalUser(false)
+          }
+        })
+        .catch(() => {
+          setIsInternalUser(false)
+        })
+    } else {
+      setIsInternalUser(false)
+    }
+  }, [session, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +71,7 @@ export default function SupportPage() {
       }
 
       setSuccess(true)
-      setFormData({ name: '', email: '', subject: '', message: '' })
+      setFormData({ name: '', email: '', subject: '', message: '', department: 'GENERAL' })
       
       // Redirect to success page or show message
       setTimeout(() => {
@@ -67,6 +100,21 @@ export default function SupportPage() {
           </p>
         </div>
 
+        {isInternalUser === true && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-2 text-yellow-400">Internal Employee Detected</h2>
+            <p className="text-slate-300 mb-4">
+              Internal employees cannot submit tickets via the public support form. Please use internal rooms for internal issues or contact your team lead.
+            </p>
+            <Link
+              href="/"
+              className="inline-block px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
+            >
+              Go to Home
+            </Link>
+          </div>
+        )}
+
         {success ? (
           <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-6 text-center">
             <div className="text-4xl mb-4">✓</div>
@@ -81,6 +129,14 @@ export default function SupportPage() {
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400">
                 {error}
+              </div>
+            )}
+
+            {isInternalUser === true && (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-yellow-400">
+                <p className="text-sm">
+                  ⚠️ The form below is disabled for internal employees. Please use internal rooms for internal issues.
+                </p>
               </div>
             )}
 
@@ -130,6 +186,27 @@ export default function SupportPage() {
             </div>
 
             <div>
+              <label htmlFor="department" className="block text-sm font-medium mb-2">
+                Department *
+              </label>
+              <select
+                id="department"
+                required
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value as 'IT_SUPPORT' | 'BILLING' | 'PRODUCT' | 'GENERAL' })}
+                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              >
+                <option value="GENERAL">General Support</option>
+                <option value="IT_SUPPORT">IT Support</option>
+                <option value="BILLING">Billing</option>
+                <option value="PRODUCT">Product</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">
+                Select the department that best matches your issue
+              </p>
+            </div>
+
+            <div>
               <label htmlFor="message" className="block text-sm font-medium mb-2">
                 Message *
               </label>
@@ -146,10 +223,10 @@ export default function SupportPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isInternalUser === true}
               className="w-full px-6 py-3 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg transition-colors font-medium"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
+              {isSubmitting ? 'Submitting...' : isInternalUser === true ? 'Not Available for Internal Employees' : 'Submit Ticket'}
             </button>
           </form>
         )}

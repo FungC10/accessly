@@ -116,13 +116,7 @@ export function HomePageClient({
             <p className="text-slate-400 mt-1">Internal collaboration rooms and customer support tickets in one place</p>
           </div>
           <div className="flex items-center gap-4">
-            {/* Support CTA - visible for all users */}
-            <Link
-              href="/support"
-              className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors"
-            >
-              Need help? Contact Support →
-            </Link>
+            {/* Support CTA removed - internal employees don't need it */}
             {/* Tickets link - visible only for admins */}
             {userRole === 'ADMIN' && (
               <Link

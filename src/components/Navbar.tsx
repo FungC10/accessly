@@ -12,6 +12,7 @@ export function Navbar() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [loadingTimeout, setLoadingTimeout] = useState(false)
+  const [isInternalUser, setIsInternalUser] = useState<boolean | null>(null)
 
   // Add timeout to prevent infinite loading
   useEffect(() => {
@@ -24,6 +25,22 @@ export function Navbar() {
       setLoadingTimeout(false)
     }
   }, [status])
+
+  // Check if user is internal (to hide Support link)
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.email) {
+      fetch('/api/user/check-internal')
+        .then(res => res.json())
+        .then(data => {
+          setIsInternalUser(data.isInternal || false)
+        })
+        .catch(() => {
+          setIsInternalUser(false)
+        })
+    } else {
+      setIsInternalUser(false)
+    }
+  }, [status, session?.user?.email])
 
   const handleSignOut = async () => {
     await signOut({ redirect: false })
@@ -90,13 +107,15 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Support Link - visible for all authenticated users */}
-            <Link
-              href="/support"
-              className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-            >
-              Support
-            </Link>
+            {/* Support Link - visible only for external customers (not internal employees) */}
+            {isInternalUser === false && (
+              <Link
+                href="/support"
+                className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+              >
+                Support
+              </Link>
+            )}
 
             {/* Tickets Link - visible only for admins */}
             {session.user.role === 'ADMIN' && (
