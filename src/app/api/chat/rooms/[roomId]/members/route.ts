@@ -142,12 +142,12 @@ export async function DELETE(
       }, { status: 404 })
     }
 
-    // Check if user has permission (OWNER or MODERATOR)
+    // Check if user has permission (OWNER only - only owners can remove members)
     try {
       await assertRoomRole(
         dbUser.id,
         roomId,
-        [RoomRole.OWNER, RoomRole.MODERATOR],
+        [RoomRole.OWNER],
         prisma
       )
     } catch (error: any) {
@@ -155,7 +155,7 @@ export async function DELETE(
         return Response.json({
           ok: false,
           code: 'FORBIDDEN',
-          message: 'Only room owners and moderators can remove members',
+          message: 'Only room owners can remove members',
         }, { status: 403 })
       }
       throw error

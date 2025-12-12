@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * DELETE /api/chat/rooms/[roomId]/members/[userId]
- * Remove a member from a room (owner/mod only)
+ * Remove a member from a room (owner only)
  */
 export async function DELETE(
   request: Request,
@@ -34,8 +34,8 @@ export async function DELETE(
       return Response.json({ ok: false, code: 'USER_NOT_FOUND' }, { status: 404 })
     }
 
-    // Check if current user is owner or moderator
-    await assertRoomRole(currentUser.id, roomId, [RoomRole.OWNER, RoomRole.MODERATOR], prisma)
+    // Check if current user is owner (only owners can remove members)
+    await assertRoomRole(currentUser.id, roomId, [RoomRole.OWNER], prisma)
 
     // Get target membership
     const targetMembership = await getMembership(userId, roomId, prisma)

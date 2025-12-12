@@ -793,7 +793,8 @@ function MembersList({
     }
   }
 
-  const canRemove = userRole === RoomRole.OWNER || userRole === RoomRole.MODERATOR
+  // Only OWNER can remove members (MODERATOR can invite but not remove)
+  const canRemove = userRole === RoomRole.OWNER
   const canTransferOwnership = userRole === RoomRole.OWNER
 
   const handleMessageUser = async (userId: string) => {
