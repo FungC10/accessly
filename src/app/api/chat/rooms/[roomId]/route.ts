@@ -2,7 +2,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getMembership } from '@/lib/rbac'
 import { logAction } from '@/lib/audit'
-import { RoomRole, Role } from '@prisma/client'
+import { isExternalCustomer } from '@/lib/user-utils'
+import { RoomRole, Role, RoomType } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,10 +28,10 @@ export async function GET(
 
     const { roomId } = params
 
-    // Verify user exists in DB and get their role
+    // Verify user exists in DB and get their role and department
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true, role: true },
+      select: { id: true, role: true, department: true },
     })
 
     if (!dbUser) {
@@ -41,7 +42,7 @@ export async function GET(
       }, { status: 404 })
     }
 
-    // Get room with full details
+    // Get room with full details including department
     const room = await prisma.room.findUnique({
       where: { id: roomId },
       select: {
@@ -53,6 +54,7 @@ export async function GET(
         type: true,
         status: true,
         ticketDepartment: true,
+        department: true,
         isPrivate: true,
         createdAt: true,
         creator: {
@@ -98,23 +100,65 @@ export async function GET(
     // Get user's membership
     const membership = await getMembership(dbUser.id, roomId, prisma)
 
-    // Check if user has access
-    // For PRIVATE rooms: must be a member
-    // For TICKET rooms: must be a member OR be an ADMIN (admins can view all tickets)
-    if (room.type === 'PRIVATE' && !membership) {
-      return Response.json({
-        ok: false,
-        code: 'FORBIDDEN',
-        message: 'You do not have access to this room',
-      }, { status: 403 })
-    }
-    
-    if (room.type === 'TICKET' && !membership && dbUser.role !== Role.ADMIN) {
-      return Response.json({
-        ok: false,
-        code: 'FORBIDDEN',
-        message: 'You do not have access to this ticket',
-      }, { status: 403 })
+    // Check if user is external customer
+    const userIsExternal = await isExternalCustomer(dbUser.id)
+    const isAdmin = dbUser.role === Role.ADMIN
+
+    // Check if user has access based on room type
+    if (room.type === RoomType.PRIVATE) {
+      // PRIVATE rooms: must be a member
+      if (!membership) {
+        return Response.json({
+          ok: false,
+          code: 'FORBIDDEN',
+          message: 'You do not have access to this room',
+        }, { status: 403 })
+      }
+    } else if (room.type === RoomType.TICKET) {
+      // TICKET rooms: 
+      // - External customers: must be a member (no admin override)
+      // - Internal users/admins: must be a member OR be an ADMIN
+      if (userIsExternal) {
+        // External customers can only access their own tickets
+        if (!membership) {
+          return Response.json({
+            ok: false,
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this ticket',
+          }, { status: 403 })
+        }
+      } else {
+        // Internal users/admins: must be a member OR be an ADMIN
+        if (!membership && !isAdmin) {
+          return Response.json({
+            ok: false,
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this ticket',
+          }, { status: 403 })
+        }
+      }
+    } else if (room.type === RoomType.PUBLIC) {
+      // PUBLIC rooms: check department-based access
+      if (userIsExternal) {
+        // External customers cannot access any PUBLIC rooms
+        return Response.json({
+          ok: false,
+          code: 'FORBIDDEN',
+          message: 'External customers cannot access internal rooms',
+        }, { status: 403 })
+      }
+      
+      if (!isAdmin) {
+        // Non-admin internal users: must match department or be PUBLIC_GLOBAL
+        if (room.department !== null && room.department !== dbUser.department) {
+          return Response.json({
+            ok: false,
+            code: 'FORBIDDEN',
+            message: 'You do not have access to rooms from other departments',
+          }, { status: 403 })
+        }
+      }
+      // Admins can access all PUBLIC rooms (no check needed)
     }
 
     // For TICKET rooms, calculate response metrics
