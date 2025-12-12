@@ -31,6 +31,14 @@ export default async function Home({
     redirect('/sign-in?callbackUrl=/')
   }
 
+  // Check if user is external customer FIRST - before fetching any rooms
+  const userIsExternal = await isExternalCustomer(dbUser.id)
+
+  // If external customer, show Customer Portal immediately
+  if (userIsExternal) {
+    return <CustomerPortal />
+  }
+
   const isAdmin = dbUser.role === 'ADMIN'
 
   const params = await searchParams
@@ -214,14 +222,6 @@ export default async function Home({
       myRooms.flatMap((r) => r.tags || []).filter((t) => t.length > 0)
     )
   ).sort()
-
-  // Check if user is external customer
-  const userIsExternal = await isExternalCustomer(dbUser.id)
-
-  // If external customer, show Customer Portal instead of Rooms UI
-  if (userIsExternal) {
-    return <CustomerPortal />
-  }
 
   // Get user role from session
   const userRole = session.user.role === 'ADMIN' ? 'ADMIN' : 'USER'

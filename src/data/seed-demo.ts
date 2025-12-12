@@ -798,7 +798,60 @@ async function main() {
   }
   console.log(`   ✅ Generated ${ticketRooms.length} ticket messages with replies`)
 
-  const totalMessages = 15 + 12 + 10 + 8 + ticketRooms.length + (3 + 2 + 2 + 2) // = 15+12+10+8+4+9 = 58 messages
+  // Add messages to customer tickets (so they have content to display)
+  // Customer ticket 1: customer1's account issue
+  const customer1MainMessage = await prisma.message.create({
+    data: {
+      roomId: customerTicket1.id,
+      userId: customer1.id,
+      content: 'I cannot log into my account after password reset. I tried multiple times but keep getting an error.',
+      createdAt: randomPastWeekDate(),
+    },
+  })
+  // Admin reply
+  await prisma.message.create({
+    data: {
+      roomId: customerTicket1.id,
+      userId: admin1.id,
+      content: 'Thanks for reporting this. I\'ve reset your account access. Please try logging in again with your email and the temporary password I\'ve sent.',
+      parentMessageId: customer1MainMessage.id,
+      createdAt: randomPastWeekDate(),
+    },
+  })
+  // Customer follow-up
+  await prisma.message.create({
+    data: {
+      roomId: customerTicket1.id,
+      userId: customer1.id,
+      content: 'Thank you! I was able to log in successfully now.',
+      parentMessageId: customer1MainMessage.id,
+      createdAt: randomPastWeekDate(),
+    },
+  })
+  console.log(`   ✅ Generated 3 messages for customer ticket 1 (account issue)`)
+
+  // Customer ticket 2: customer2's payment issue
+  const customer2MainMessage = await prisma.message.create({
+    data: {
+      roomId: customerTicket2.id,
+      userId: customer2.id,
+      content: 'My credit card is being declined when trying to update payment method. The card works fine elsewhere.',
+      createdAt: randomPastWeekDate(),
+    },
+  })
+  // Admin reply
+  await prisma.message.create({
+    data: {
+      roomId: customerTicket2.id,
+      userId: admin2.id,
+      content: 'I see the issue. There was a temporary problem with our payment processor. Please try again now - it should work.',
+      parentMessageId: customer2MainMessage.id,
+      createdAt: randomPastWeekDate(),
+    },
+  })
+  console.log(`   ✅ Generated 2 messages for customer ticket 2 (payment issue)`)
+
+  const totalMessages = 15 + 12 + 10 + 8 + ticketRooms.length + (3 + 2 + 2 + 2) + 3 + 2 // = 15+12+10+8+4+9+5 = 63 messages
   console.log(`\n   📊 Total messages: ${totalMessages} (within 50-120 range)`)
 
   // ============================================
