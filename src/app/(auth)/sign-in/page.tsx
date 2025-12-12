@@ -1,9 +1,12 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 
 export default function SignInPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [callbackUrl, setCallbackUrl] = useState('/')
   const [error, setError] = useState<string | null>(null)
   const [hasGitHub, setHasGitHub] = useState(false)
@@ -26,7 +29,18 @@ export default function SignInPage() {
     setLoading(false)
   }, [])
 
-  if (loading) {
+  // Redirect authenticated users away from sign-in page
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      // User is already logged in, redirect to callbackUrl or home
+      const params = new URLSearchParams(window.location.search)
+      const cb = params.get('callbackUrl') || '/'
+      router.push(cb)
+    }
+  }, [status, session, router])
+
+  // Show loading while checking session or if user is authenticated (will redirect)
+  if (loading || status === 'loading' || (status === 'authenticated' && session?.user)) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-slate-400">Loading...</div>
