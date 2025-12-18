@@ -76,8 +76,8 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
     checkRoomAndUser()
   }, [roomId, session?.user?.role])
 
-  // Fetch AI insights
-  const fetchInsights = useCallback(async () => {
+  // PEEK: Get existing insights without updating (read-only)
+  const peekInsights = useCallback(async () => {
     // Guard: only fetch if it's a TICKET room and user is admin
     if (roomType !== 'TICKET' || isAdmin !== true) {
       return
@@ -97,7 +97,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ roomId }),
+        body: JSON.stringify({ roomId, action: 'peek' }),
       })
 
       const data = await response.json()
@@ -110,17 +110,23 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
       if (!response.ok || !data.ok) {
         // Only throw if we're still on a ticket room
         if (roomType === 'TICKET' && isAdmin === true) {
-          throw new Error(data.message || 'Failed to fetch AI insights')
+          throw new Error(data.message || 'Failed to peek AI insights')
         }
         return
       }
 
-      setInsights(data.data)
-      setProvider(data.provider || null)
+      // Handle null data (no existing summary)
+      if (data.data === null) {
+        setInsights(null)
+        setProvider(null)
+      } else {
+        setInsights(data.data)
+        setProvider(data.provider || null)
+      }
     } catch (err: any) {
       // Only set error if we're still in a ticket room and on the same room
       if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && isAdmin === true) {
-        console.error('Error fetching AI insights:', err)
+        console.error('Error peeking AI insights:', err)
         setError(err.message || 'Failed to load AI insights')
       }
     } finally {
@@ -131,18 +137,73 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
     }
   }, [roomId, roomType, isAdmin])
 
-  // Fetch insights on mount and when room changes
-  useEffect(() => {
-    if (roomType === 'TICKET' && isAdmin === true) {
-      fetchInsights()
-      } else {
-        // Clear insights when switching away from ticket room
-        setInsights(null)
-        setProvider(null)
-        setError(null)
+  // REFRESH: Generate/update insights (write operation)
+  const refreshInsights = useCallback(async () => {
+    // Guard: only fetch if it's a TICKET room and user is admin
+    if (roomType !== 'TICKET' || isAdmin !== true) {
+      return
+    }
+
+    // Double-check: verify we're still on the same room before making API call
+    if (currentRoomIdRef.current !== roomId) {
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/ai/ticket-assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roomId, action: 'refresh' }),
+      })
+
+      const data = await response.json()
+
+      // Check again if we're still on the same room before processing response
+      if (currentRoomIdRef.current !== roomId) {
+        return
+      }
+
+      if (!response.ok || !data.ok) {
+        // Only throw if we're still on a ticket room
+        if (roomType === 'TICKET' && isAdmin === true) {
+          throw new Error(data.message || 'Failed to refresh AI insights')
+        }
+        return
+      }
+
+      setInsights(data.data)
+      setProvider(data.provider || null)
+    } catch (err: any) {
+      // Only set error if we're still in a ticket room and on the same room
+      if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && isAdmin === true) {
+        console.error('Error refreshing AI insights:', err)
+        setError(err.message || 'Failed to refresh AI insights')
+      }
+    } finally {
+      // Only update loading state if we're still on the same room
+      if (currentRoomIdRef.current === roomId) {
         setIsLoading(false)
       }
-  }, [roomId, roomType, isAdmin, fetchInsights])
+    }
+  }, [roomId, roomType, isAdmin])
+
+  // PEEK insights on mount and when room changes (read-only, no update)
+  useEffect(() => {
+    if (roomType === 'TICKET' && isAdmin === true) {
+      peekInsights()
+    } else {
+      // Clear insights when switching away from ticket room
+      setInsights(null)
+      setProvider(null)
+      setError(null)
+      setIsLoading(false)
+    }
+  }, [roomId, roomType, isAdmin, peekInsights])
 
   // Don't render if not a TICKET room or user is not admin
   if (roomType !== 'TICKET' || isAdmin !== true) {
@@ -220,11 +281,28 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
                 <p className="text-sm text-red-400">{error}</p>
               </div>
               <button
-                onClick={fetchInsights}
+                onClick={refreshInsights}
                 className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {/* Empty State - No summary yet */}
+          {!insights && !isLoading && !error && (
+            <div className="space-y-3">
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 text-center">
+                <p className="text-sm text-slate-400 mb-3">
+                  No AI insights available yet. Click refresh to generate insights for this ticket.
+                </p>
+                <button
+                  onClick={refreshInsights}
+                  className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Generate Insights
+                </button>
+              </div>
             </div>
           )}
 
@@ -337,7 +415,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
               {/* Refresh Button */}
               <button
-                onClick={fetchInsights}
+                onClick={refreshInsights}
                 className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
                 <svg

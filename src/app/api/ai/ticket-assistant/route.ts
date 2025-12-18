@@ -6,43 +6,6 @@ import { TicketAIService } from '@/lib/ai/service'
 
 export const dynamic = 'force-dynamic'
 
-// Simple in-memory cache (for MVP)
-// In production, consider using Redis or similar
-interface CacheEntry {
-  data: any
-  provider: string
-  expiresAt: number
-}
-
-const cache = new Map<string, CacheEntry>()
-
-// Cache TTL: 5 minutes
-const CACHE_TTL_MS = 5 * 60 * 1000
-
-function getCacheKey(roomId: string, lastMessageId: string | null, lastMessageAt: string | null): string {
-  return `ticket-assistant:${roomId}:${lastMessageId || 'none'}:${lastMessageAt || 'none'}`
-}
-
-function getCached(key: string): { data: any; provider: string } | null {
-  const entry = cache.get(key)
-  if (!entry) return null
-  
-  if (Date.now() > entry.expiresAt) {
-    cache.delete(key)
-    return null
-  }
-  
-  return { data: entry.data, provider: entry.provider }
-}
-
-function setCache(key: string, data: any, provider: string): void {
-  cache.set(key, {
-    data,
-    provider,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  })
-}
-
 /**
  * POST /api/ai/ticket-assistant
  * Get AI insights for a ticket (internal staff only)
@@ -83,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { roomId } = body
+    const { roomId, action } = body
 
     if (!roomId) {
       return Response.json({
@@ -92,6 +55,17 @@ export async function POST(request: Request) {
         message: 'roomId is required',
       }, { status: 400 })
     }
+
+    if (action && action !== 'peek' && action !== 'refresh') {
+      return Response.json({
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        message: 'action must be "peek" or "refresh"',
+      }, { status: 400 })
+    }
+
+    // Default to 'peek' if action not specified (backward compatibility)
+    const requestAction = action || 'peek'
 
     // Verify room exists and is a TICKET
     const room = await prisma.room.findUnique({
@@ -144,41 +118,52 @@ export async function POST(request: Request) {
       }, { status: 403 })
     }
 
-    // Get last message info for cache key
-    const lastMessage = await prisma.message.findFirst({
-      where: { roomId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, createdAt: true },
-    })
+    const service = new TicketAIService()
 
-    const lastMessageId = lastMessage?.id || null
-    const lastMessageAt = lastMessage?.createdAt.toISOString() || null
+    if (requestAction === 'peek') {
+      // PEEK: Return existing insights without updating
+      const result = await service.peekInsights(roomId)
+      
+      if (!result) {
+        // No existing summary
+        return Response.json({
+          ok: true,
+          data: null,
+          provider: null,
+          meta: {
+            hasNewMessages: false,
+            newMessageCount: 0,
+            summarizedMessageCount: 0,
+          },
+        })
+      }
 
-    // Check cache
-    const cacheKey = getCacheKey(roomId, lastMessageId, lastMessageAt)
-    const cached = getCached(cacheKey)
-    if (cached) {
       return Response.json({
         ok: true,
-        data: cached.data,
-        provider: cached.provider,
-        cached: true,
+        data: result.insights,
+        provider: result.provider,
+        meta: {
+          hasNewMessages: result.hasNewMessages,
+          newMessageCount: result.newMessageCount,
+          summarizedMessageCount: result.summarizedMessageCount,
+        },
+      })
+    } else {
+      // REFRESH: Generate/update insights
+      const { forceFullRefresh } = body
+      const result = await service.generateInsights(roomId, forceFullRefresh === true)
+
+      return Response.json({
+        ok: true,
+        data: result.insights,
+        provider: result.provider,
+        meta: {
+          hasNewMessages: result.hasNewMessages,
+          newMessageCount: result.newMessageCount,
+          summarizedMessageCount: result.summarizedMessageCount,
+        },
       })
     }
-
-    // Generate insights using service
-    const service = new TicketAIService()
-    const { insights, provider } = await service.generateInsights(roomId)
-
-    // Cache the response
-    setCache(cacheKey, insights, provider)
-
-    return Response.json({
-      ok: true,
-      data: insights,
-      provider,
-      cached: false,
-    })
   } catch (error: any) {
     console.error('Error in ticket-assistant API:', error)
     return Response.json({

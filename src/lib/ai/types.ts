@@ -32,3 +32,10 @@ export interface RoomContext {
   createdAt: Date
 }
 
+/**
+ * Message with ID for tracking what's been summarized
+ */
+export interface AnonymizedMessageWithId extends AnonymizedMessage {
+  id: string
+}
+

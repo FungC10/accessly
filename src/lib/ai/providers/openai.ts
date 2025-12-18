@@ -30,5 +30,33 @@ export class OpenAITicketAIProvider implements TicketAIProvider {
       'OpenAI provider is not yet implemented. Use TICKET_AI_PROVIDER=fake for now.'
     )
   }
+
+  async generateIncremental(
+    room: RoomContext,
+    previousSummary: string,
+    previousInsights: AIInsights,
+    newMessages: AnonymizedMessage[]
+  ): Promise<AIInsights> {
+    const apiKey = process.env.OPENAI_API_KEY
+    
+    if (!apiKey) {
+      throw new Error(
+        'OPENAI_API_KEY environment variable is required for OpenAI provider'
+      )
+    }
+
+    // TODO: Implement OpenAI incremental summarization
+    // 1. Build prompt with:
+    //    - Previous summary as context
+    //    - New messages to merge
+    //    - Instructions to update summary incrementally
+    // 2. Call OpenAI API with incremental prompt
+    // 3. Parse response into AIInsights format
+    // 4. Handle rate limiting and errors
+    
+    throw new Error(
+      'OpenAI incremental summarization is not yet implemented. Use TICKET_AI_PROVIDER=fake for now.'
+    )
+  }
 }
 
