@@ -66,6 +66,9 @@ export async function getStaffAnalytics(): Promise<StaffAnalyticsResponse> {
     total: 0,
   }
 
+  // Aggregate tickets by department
+  // Note: Tickets without a department (null ticketDepartment) are excluded from the summary
+  // This is expected behavior as tickets are always created with a department
   for (const dept of ticketsByDept) {
     if (dept.ticketDepartment) {
       deptSummary[dept.ticketDepartment] = dept._count.id

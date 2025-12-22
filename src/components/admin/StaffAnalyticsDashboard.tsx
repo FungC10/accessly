@@ -22,7 +22,15 @@ export function StaffAnalyticsDashboard({ data }: StaffAnalyticsDashboardProps) 
       {/* Summary Card: Tickets by Department */}
       {ticketsByDepartment && (
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-sm text-slate-400 mb-3">Tickets by Department</div>
+          <div className="text-sm text-slate-400 mb-3">
+            Tickets by Department
+            <span
+              className="ml-2 text-xs text-slate-500 cursor-help"
+              title="Total number of tickets grouped by department (all time)"
+            >
+              ℹ️
+            </span>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(ticketsByDepartment)
               .filter(([key]) => key !== 'total')
@@ -46,7 +54,15 @@ export function StaffAnalyticsDashboard({ data }: StaffAnalyticsDashboardProps) 
 
       {/* Main Staff Table */}
       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-        <div className="text-sm text-slate-400 mb-3">Staff Load & Performance</div>
+        <div className="text-sm text-slate-400 mb-3">
+          Staff Load & Performance
+          <span
+            className="ml-2 text-xs text-slate-500 cursor-help"
+            title="Metrics for all staff members (admins). Hover over column headers for detailed explanations."
+          >
+            ℹ️
+          </span>
+        </div>
         {staff.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <p>No staff analytics available yet.</p>
@@ -60,11 +76,36 @@ export function StaffAnalyticsDashboard({ data }: StaffAnalyticsDashboardProps) 
               <thead className="text-xs uppercase text-slate-400 border-b border-slate-700">
                 <tr>
                   <th className="py-2 text-left px-2">Staff</th>
-                  <th className="py-2 text-right px-2">Total Tickets</th>
-                  <th className="py-2 text-right px-2">Active Tickets</th>
-                  <th className="py-2 text-right px-2">Avg Response</th>
-                  <th className="py-2 text-right px-2">Messages (30d)</th>
-                  <th className="py-2 text-right px-2">Resolution Rate</th>
+                  <th
+                    className="py-2 text-right px-2 cursor-help"
+                    title="Total number of tickets assigned to this staff member (all time)"
+                  >
+                    Total Tickets
+                  </th>
+                  <th
+                    className="py-2 text-right px-2 cursor-help"
+                    title="Currently open or waiting tickets assigned to this staff member"
+                  >
+                    Active Tickets
+                  </th>
+                  <th
+                    className="py-2 text-right px-2 cursor-help"
+                    title="Average time to respond to customer messages (in minutes). Calculated from customer message to staff response."
+                  >
+                    Avg Response
+                  </th>
+                  <th
+                    className="py-2 text-right px-2 cursor-help"
+                    title="Number of messages sent by this staff member in ticket rooms over the last 30 days"
+                  >
+                    Messages (30d)
+                  </th>
+                  <th
+                    className="py-2 text-right px-2 cursor-help"
+                    title="Percentage of tickets resolved out of all tickets with OPEN, WAITING, or RESOLVED status"
+                  >
+                    Resolution Rate
+                  </th>
                 </tr>
               </thead>
               <tbody>
