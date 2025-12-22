@@ -1,15 +1,11 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { AuditLogDashboard } from '@/components/admin/AuditLogDashboard'
+import { StaffAnalyticsDashboard } from '@/components/admin/StaffAnalyticsDashboard'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export default async function AuditLogPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ action?: string; actorId?: string; targetType?: string; targetId?: string }>
-}) {
+export default async function StaffAnalyticsPage() {
   const { auth } = await import('@/lib/auth')
   const { prisma } = await import('@/lib/prisma')
   const { Role } = await import('@prisma/client')
@@ -18,7 +14,7 @@ export default async function AuditLogPage({
 
   // Require authentication
   if (!session?.user) {
-    redirect('/sign-in?callbackUrl=/admin/audit')
+    redirect('/sign-in?callbackUrl=/admin/staff-analytics')
   }
 
   // Verify user is admin
@@ -31,13 +27,15 @@ export default async function AuditLogPage({
     redirect('/')
   }
 
-  const params = await searchParams
+  // Fetch analytics data directly (server-side)
+  const { getStaffAnalytics } = await import('@/app/api/admin/staff-analytics/logic')
+  const data = await getStaffAnalytics()
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Audit Log</h1>
+          <h1 className="text-3xl font-bold">Staff Analytics</h1>
           <Link
             href="/admin"
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
@@ -62,19 +60,19 @@ export default async function AuditLogPage({
           </Link>
           <Link
             href="/admin/audit"
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
           >
             📝 Audit Log
           </Link>
           <Link
             href="/admin/staff-analytics"
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
           >
             👥 Staff Analytics
           </Link>
         </div>
 
-        <AuditLogDashboard initialFilters={params} />
+        <StaffAnalyticsDashboard data={data} />
       </div>
     </div>
   )

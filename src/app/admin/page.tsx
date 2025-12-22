@@ -69,6 +69,12 @@ export default async function AdminPage() {
           >
             📝 Audit Log
           </Link>
+          <Link
+            href="/admin/staff-analytics"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+          >
+            👥 Staff Analytics
+          </Link>
         </div>
 
         {/* System Stats */}
