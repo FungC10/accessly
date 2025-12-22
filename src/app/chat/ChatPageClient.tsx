@@ -375,7 +375,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
         {/* Room/Ticket Lists */}
         <div className="flex-1 overflow-y-auto p-4 min-h-0">
           {isExternalCustomer === true ? (
-            // External customers: show their tickets directly (from myRooms which now includes TICKET rooms)
+            // External customers: show ONLY their TICKET rooms (API should only return TICKET rooms, but filter to be safe)
             (() => {
               const ticketRooms = myRooms.filter((r) => r.type === 'TICKET')
               

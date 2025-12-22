@@ -71,22 +71,99 @@ export async function GET(request: Request) {
 
     const isAdmin = dbUser.role === 'ADMIN'
     
-    // Check if user is external customer (they need to see TICKET rooms)
+    // Check if user is external customer (they should ONLY see TICKET rooms)
     const userIsExternal = await isExternalCustomer(userId)
 
-    // Fetch rooms where user is a member (use DB user ID)
-    // PRIVATE rooms: only visible to members (admins don't auto-see)
-    // PUBLIC rooms: visible based on department rules below
-    // TICKET rooms: only for external customers (they only see their own tickets)
-    const roomTypes = userIsExternal 
-      ? ['PUBLIC', 'PRIVATE', 'TICKET'] // External customers see their tickets
-      : ['PUBLIC', 'PRIVATE'] // Internal users don't see tickets in main sidebar (they use tickets tab)
-    
+    // For external customers: ONLY return TICKET rooms (they should not see PUBLIC/PRIVATE rooms)
+    // For internal users: return PUBLIC and PRIVATE rooms (TICKET rooms are in tickets tab)
+    if (userIsExternal) {
+      // External customers: ONLY TICKET rooms
+      const ticketMemberships = await prisma.roomMember.findMany({
+        where: {
+          userId: userId,
+          room: {
+            type: 'TICKET', // Only TICKET rooms for external customers
+          },
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              name: true,
+              title: true,
+              description: true,
+              tags: true,
+              type: true,
+              isPrivate: true,
+              department: true,
+              createdAt: true,
+              creator: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                },
+              },
+              _count: {
+                select: {
+                  members: true,
+                  messages: true,
+                },
+              },
+              messages: {
+                take: 1,
+                orderBy: {
+                  createdAt: 'desc',
+                },
+                select: {
+                  id: true,
+                  content: true,
+                  createdAt: true,
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      image: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          room: {
+            createdAt: 'desc',
+          },
+        },
+      })
+
+      const ticketRooms = ticketMemberships.map((m) => ({
+        ...m.room,
+        role: m.role,
+        lastMessage: m.room.messages[0] || null,
+        otherUser: null,
+      }))
+
+      const roomTypeSummary = 'TICKET only (external customer)'
+      console.log('GET /api/chat/rooms - Found', ticketRooms.length, 'ticket rooms for external customer', session.user.id, `(${roomTypeSummary})`)
+
+      return Response.json({
+        ok: true,
+        code: 'SUCCESS',
+        message: 'Rooms retrieved successfully',
+        data: {
+          rooms: ticketRooms,
+        },
+      })
+    }
+
+    // Internal users: Fetch PUBLIC and PRIVATE rooms (TICKET rooms excluded - they use tickets tab)
     const memberships = await prisma.roomMember.findMany({
       where: {
         userId: userId, // Use DB user ID, not session user ID
         room: {
-          type: { in: roomTypes },
+          type: { in: ['PUBLIC', 'PRIVATE'] }, // Only PUBLIC and PRIVATE for internal users
         },
       },
       include: {
@@ -152,12 +229,8 @@ export async function GET(request: Request) {
       }))
       // Filter: PRIVATE rooms only if user is a member (already handled by query)
       // PUBLIC rooms: filter by department rules below
-      // TICKET rooms: only for external customers (they only see their own tickets)
+      // Note: TICKET rooms are already excluded from query for internal users
       .filter((r) => {
-        if (r.type === 'TICKET') {
-          // TICKET rooms: only show for external customers (they're members of their own tickets)
-          return userIsExternal
-        }
         if (r.type === 'PRIVATE') {
           // PRIVATE rooms: only if user is a member (already in memberships)
           return true
@@ -251,9 +324,7 @@ export async function GET(request: Request) {
       })),
     ]
 
-    const roomTypeSummary = userIsExternal 
-      ? 'DM excluded (TICKET included for external customers)'
-      : 'DM and TICKET excluded'
+    const roomTypeSummary = 'DM and TICKET excluded (internal users only)'
     console.log('GET /api/chat/rooms - Found', rooms.length, 'rooms for user', session.user.id, `(${roomTypeSummary})`)
 
     return Response.json({
