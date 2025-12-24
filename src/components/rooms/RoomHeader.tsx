@@ -73,10 +73,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   }, [roomId])
 
   useEffect(() => {
-    if (showAssign) {
+    if (showAssign || showInvite) {
       fetchAllUsers()
     }
-  }, [showAssign])
+  }, [showAssign, showInvite])
 
   const fetchAllUsers = async () => {
     try {
@@ -206,26 +206,53 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
 
     setIsAssigning(true)
     try {
-      const response = await fetch(`/api/tickets/${roomId}/assign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assignToUserId }),
-      })
+      // For TICKET rooms, use the ticket assign endpoint
+      if (roomDetails?.type === 'TICKET') {
+        const response = await fetch(`/api/tickets/${roomId}/assign`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ assignToUserId }),
+        })
 
-      const data = await response.json()
-      if (data.ok) {
-        setAssignToUserId('')
-        setShowAssign(false)
-        alert('Ticket assigned successfully')
-        fetchRoomDetails()
+        const data = await response.json()
+        if (data.ok) {
+          setAssignToUserId('')
+          setShowAssign(false)
+          alert('Ticket assigned successfully')
+          fetchRoomDetails()
+        } else {
+          alert(data.message || 'Failed to assign ticket')
+        }
       } else {
-        alert(data.message || 'Failed to assign ticket')
+        // For PRIVATE rooms, use invite endpoint with MODERATOR role
+        // MODERATOR gives management capabilities similar to ticket assignment
+        // Note: PUBLIC rooms are excluded (they use join, not invite/assign)
+        const response = await fetch(`/api/chat/rooms/${roomId}/invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: assignToUserId,
+            role: 'MODERATOR',
+          }),
+        })
+
+        const data = await response.json()
+        if (data.ok) {
+          setAssignToUserId('')
+          setShowAssign(false)
+          alert('User assigned successfully')
+          fetchRoomDetails()
+        } else {
+          alert(data.message || 'Failed to assign user')
+        }
       }
     } catch (err) {
-      console.error('Error assigning ticket:', err)
-      alert('Failed to assign ticket')
+      console.error('Error assigning:', err)
+      alert('Failed to assign user')
     } finally {
       setIsAssigning(false)
     }
@@ -334,7 +361,9 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     ? { label: 'RESOLVED', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
     : null
 
-  const canEdit = roomDetails?.type !== 'DM' && roomDetails?.userRole === RoomRole.OWNER
+  // Room owners can edit, and admins can edit all rooms
+  const canEdit = roomDetails?.type !== 'DM' && 
+    (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.isAdmin || session?.user?.role === 'ADMIN')
   // DM rooms cannot have invites (only 2 members)
   // TICKET and PRIVATE rooms can have invites:
   // - OWNER/MODERATOR can always invite (room creators are OWNER)
@@ -346,7 +375,12 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
      roomDetails?.userRole === RoomRole.MODERATOR || 
      roomDetails?.isAdmin)
   // Admins can assign issues even if not OWNER
-  const canAssign = roomDetails?.type === 'TICKET' && (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.isAdmin)
+  // For TICKET rooms: use ticket assign endpoint
+  // For PRIVATE rooms: use invite endpoint with MODERATOR role
+  // PUBLIC rooms are excluded (they use join, not invite/assign)
+  const canAssign = roomDetails?.type !== 'DM' && 
+    (roomDetails?.type === 'TICKET' || roomDetails?.type === 'PRIVATE') &&
+    (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.isAdmin || session?.user?.role === 'ADMIN')
   // Admin can change ticket status
   const canChangeStatus = roomDetails?.type === 'TICKET' && (roomDetails?.isAdmin || session?.user?.role === 'ADMIN')
 
@@ -472,7 +506,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             <button
               onClick={() => setShowAssign(!showAssign)}
               className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 rounded"
-              title="Assign ticket"
+              title={roomDetails?.type === 'TICKET' ? 'Assign ticket' : 'Assign user'}
             >
               👤 Assign
             </button>
@@ -610,7 +644,9 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {showAssign && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Assign Issue</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              {roomDetails?.type === 'TICKET' ? 'Assign Issue' : 'Assign User'}
+            </h3>
             <form onSubmit={handleAssign} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
@@ -665,16 +701,33 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             <form onSubmit={handleInvite} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
-                  User Email
+                  {roomDetails?.type === 'PRIVATE' ? 'Select User' : 'User Email'}
                 </label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
-                  required
-                />
+                {roomDetails?.type === 'PRIVATE' ? (
+                  <select
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
+                    required
+                    disabled={allUsers.length === 0}
+                  >
+                    <option value="">{allUsers.length === 0 ? 'Loading users...' : 'Select a user...'}</option>
+                    {allUsers.map((user) => (
+                      <option key={user.id} value={user.email}>
+                        {user.name || user.email} {user.role === 'ADMIN' ? '(Admin)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
+                    required
+                  />
+                )}
               </div>
               <div className="flex gap-3">
                 <button

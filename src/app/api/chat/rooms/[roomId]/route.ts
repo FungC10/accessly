@@ -262,7 +262,7 @@ export async function GET(
 
 /**
  * PATCH /api/chat/rooms/[roomId]
- * Update room metadata (only OWNER)
+ * Update room metadata (OWNER or ADMIN)
  */
 export async function PATCH(
   request: Request,
@@ -283,7 +283,7 @@ export async function PATCH(
     // Verify user exists in DB
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (!dbUser) {
@@ -294,13 +294,15 @@ export async function PATCH(
       }, { status: 404 })
     }
 
-    // Check if user is OWNER
+    const isAdmin = dbUser.role === Role.ADMIN
+
+    // Check if user is OWNER or ADMIN
     const membership = await getMembership(dbUser.id, roomId, prisma)
-    if (!membership || membership.role !== RoomRole.OWNER) {
+    if (!isAdmin && (!membership || membership.role !== RoomRole.OWNER)) {
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',
-        message: 'Only room owners can update room metadata',
+        message: 'Only room owners or admins can update room metadata',
       }, { status: 403 })
     }
 
