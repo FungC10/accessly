@@ -77,13 +77,10 @@ export async function GET(request: Request) {
           },
         },
         messages: {
-          where: {
-            parentMessageId: null, // Only root messages (the ticket content)
-          },
           orderBy: {
-            createdAt: 'asc',
+            createdAt: 'desc',
           },
-          take: 1, // Get the first message (ticket content)
+          take: 1, // Get the last message (most recent)
           include: {
             user: {
               select: {
@@ -120,7 +117,7 @@ export async function GET(request: Request) {
           updatedAt: ticket.updatedAt.toISOString(),
           creator: ticket.creator,
           owner: ticket.members.find((m) => m.role === 'OWNER')?.user,
-          firstMessage: ticket.messages[0] ? {
+          lastMessage: ticket.messages[0] ? {
             id: ticket.messages[0].id,
             content: ticket.messages[0].content,
             createdAt: ticket.messages[0].createdAt.toISOString(),

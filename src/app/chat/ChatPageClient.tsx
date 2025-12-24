@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChatRoom } from '@/components/ChatRoom'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { initSocket } from '@/lib/socket'
 
 interface Room {
   id: string
@@ -54,6 +55,17 @@ interface Ticket {
   status: 'OPEN' | 'WAITING' | 'RESOLVED' | null
   department: string | null
   messageCount: number
+  updatedAt?: string
+  lastMessage?: {
+    id: string
+    content: string
+    createdAt: string
+    user: {
+      id: string
+      name: string | null
+      email: string | null
+    }
+  } | null
 }
 
 export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
@@ -385,6 +397,101 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
 
+  // Listen to socket events to update room list when new messages arrive
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) return
+
+    const socket = initSocket(session.user.id)
+
+    const handleMessageNew = (message: any) => {
+      // Validate message structure
+      if (!message || !message.roomId || !message.id) {
+        return
+      }
+      // Update the room list with the new last message
+      setMyRooms((prevRooms) => {
+        const roomIndex = prevRooms.findIndex((r) => r.id === message.roomId)
+        if (roomIndex === -1) {
+          // Room not in list, might need to fetch it
+          return prevRooms
+        }
+
+        // Update the room's lastMessage and updatedAt
+        // Note: We don't increment message count here as it may already be counted
+        // The count will be refreshed on next fetch
+        const updatedRooms = [...prevRooms]
+        updatedRooms[roomIndex] = {
+          ...updatedRooms[roomIndex],
+          lastMessage: {
+            id: message.id,
+            content: message.content,
+            createdAt: message.createdAt,
+            user: message.user,
+          },
+          updatedAt: message.createdAt,
+        }
+
+        // Re-sort by last activity (most recent first)
+        return updatedRooms.sort((a, b) => {
+          const aTime = a.lastMessage?.createdAt
+            ? new Date(a.lastMessage.createdAt).getTime()
+            : a.updatedAt
+            ? new Date(a.updatedAt).getTime()
+            : 0
+          const bTime = b.lastMessage?.createdAt
+            ? new Date(b.lastMessage.createdAt).getTime()
+            : b.updatedAt
+            ? new Date(b.updatedAt).getTime()
+            : 0
+          return bTime - aTime
+        })
+      })
+
+      // Also update tickets list if we're on the tickets tab
+      if (activeTab === 'tickets') {
+        setTickets((prevTickets) => {
+          const ticketIndex = prevTickets.findIndex((t) => t.roomId === message.roomId || t.id === message.roomId)
+          if (ticketIndex === -1) {
+            return prevTickets
+          }
+
+          const updatedTickets = [...prevTickets]
+          updatedTickets[ticketIndex] = {
+            ...updatedTickets[ticketIndex],
+            lastMessage: {
+              id: message.id,
+              content: message.content,
+              createdAt: message.createdAt,
+              user: message.user,
+            },
+            updatedAt: message.createdAt,
+          }
+
+          // Re-sort by last activity
+          return updatedTickets.sort((a, b) => {
+            const aTime = a.lastMessage?.createdAt
+              ? new Date(a.lastMessage.createdAt).getTime()
+              : a.updatedAt
+              ? new Date(a.updatedAt).getTime()
+              : 0
+            const bTime = b.lastMessage?.createdAt
+              ? new Date(b.lastMessage.createdAt).getTime()
+              : b.updatedAt
+              ? new Date(b.updatedAt).getTime()
+              : 0
+            return bTime - aTime
+          })
+        })
+      }
+    }
+
+    socket.on('message:new', handleMessageNew)
+
+    return () => {
+      socket.off('message:new', handleMessageNew)
+    }
+  }, [status, session?.user?.id, activeTab])
+
   if (status === 'loading' || isLoading) {
     return (
       <div className="fixed inset-0 bg-slate-950 text-white flex items-center justify-center">
@@ -595,7 +702,22 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
               }
 
               // Show PUBLIC, PRIVATE, and TICKET rooms (TICKET rooms where user is assigned)
-              const teamRooms = myRooms.filter((r) => r.type === 'PUBLIC' || r.type === 'PRIVATE' || r.type === 'TICKET')
+              // Sort by last activity (lastMessage createdAt or room updatedAt)
+              const teamRooms = myRooms
+                .filter((r) => r.type === 'PUBLIC' || r.type === 'PRIVATE' || r.type === 'TICKET')
+                .sort((a, b) => {
+                  const aTime = a.lastMessage?.createdAt 
+                    ? new Date(a.lastMessage.createdAt).getTime()
+                    : a.updatedAt 
+                    ? new Date(a.updatedAt).getTime()
+                    : 0
+                  const bTime = b.lastMessage?.createdAt
+                    ? new Date(b.lastMessage.createdAt).getTime()
+                    : b.updatedAt
+                    ? new Date(b.updatedAt).getTime()
+                    : 0
+                  return bTime - aTime // Most recent first
+                })
               
               if (teamRooms.length === 0) {
                 return (
@@ -633,19 +755,35 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                             router.push(`/chat?${params.toString()}`, { scroll: false })
                           }
                         }}
-                        className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex items-center justify-between ${
-                          roomId === room.id
-                            ? 'bg-cyan-600 text-white'
-                            : 'bg-slate-800 hover:bg-slate-700'
-                        }`}
-                      >
-                        <span className="truncate">{displayTitle}</span>
-                        {room._count && (
-                          <span className="text-xs opacity-70 ml-2 flex-shrink-0">
-                            {room._count.messages || 0}
-                          </span>
+                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                        roomId === room.id
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-slate-800 hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="truncate font-medium">{displayTitle}</span>
+                          {room._count && (
+                            <span className="text-xs opacity-70 flex-shrink-0 ml-2">
+                              {room._count.messages || 0}
+                            </span>
+                          )}
+                        </div>
+                        {room.lastMessage && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs opacity-60 truncate flex-1">
+                              {room.lastMessage.user?.name || 'Someone'}: {room.lastMessage.content.length > 50 
+                                ? room.lastMessage.content.slice(0, 50) + '...'
+                                : room.lastMessage.content}
+                            </span>
+                            <span className="text-xs opacity-50 flex-shrink-0">
+                              {new Date(room.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
                         )}
-                      </button>
+                      </div>
+                    </button>
                     )
                   })}
                 </div>
@@ -729,9 +867,24 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                 )
               }
 
+              // Sort tickets by last activity (lastMessage createdAt or ticket updatedAt)
+              const sortedTickets = [...tickets].sort((a, b) => {
+                const aTime = a.lastMessage?.createdAt
+                  ? new Date(a.lastMessage.createdAt).getTime()
+                  : a.updatedAt
+                  ? new Date(a.updatedAt).getTime()
+                  : 0
+                const bTime = b.lastMessage?.createdAt
+                  ? new Date(b.lastMessage.createdAt).getTime()
+                  : b.updatedAt
+                  ? new Date(b.updatedAt).getTime()
+                  : 0
+                return bTime - aTime // Most recent first
+              })
+
               return (
                 <div className="space-y-1">
-                  {tickets.map((ticket) => {
+                  {sortedTickets.map((ticket) => {
                     // Use ticket.roomId explicitly (same as ticket.id, but makes intent clear)
                     // Tickets ARE Room records, so ticket.id === ticket.roomId === room.id
                     const ticketRoomId = ticket.roomId || ticket.id
@@ -773,6 +926,18 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                             {ticket.messageCount || 0}
                           </span>
                         </div>
+                        {ticket.lastMessage && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs opacity-60 truncate flex-1">
+                              {ticket.lastMessage.user?.name || 'Someone'}: {ticket.lastMessage.content.length > 50
+                                ? ticket.lastMessage.content.slice(0, 50) + '...'
+                                : ticket.lastMessage.content}
+                            </span>
+                            <span className="text-xs opacity-50 flex-shrink-0">
+                              {new Date(ticket.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 flex-wrap">
                           {ticket.department && (
                             <span className={`px-1.5 py-0.5 text-xs rounded border ${getDepartmentColor(ticket.department)}`}>
