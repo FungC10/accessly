@@ -18,8 +18,18 @@ const SignUpInput = z.object({
 /**
  * POST /api/auth/signup
  * Create a new user account (for external customers)
+ * 
+ * DEMO MODE: Account creation is disabled - returns 403
  */
 async function POSTHandler(request: Request) {
+  // Demo mode: Account creation is restricted
+  return Response.json({
+    ok: false,
+    code: 'SIGNUP_DISABLED',
+    message: 'Account creation is restricted. Please contact your administrator.',
+  }, { status: 403 })
+
+  /* Original signup logic kept for reference - uncomment to re-enable
   try {
     const body = await request.json()
 
@@ -80,6 +90,7 @@ async function POSTHandler(request: Request) {
       request
     )
   }
+  */
 }
 
 // Export with request logging

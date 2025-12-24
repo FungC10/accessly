@@ -8,6 +8,24 @@ import Link from 'next/link'
 export default function SupportPage() {
   const router = useRouter()
   const { data: session } = useSession()
+
+  // Demo mode: Public support form is disabled - redirect to home
+  useEffect(() => {
+    if (session?.user) {
+      router.push('/')
+    } else {
+      router.push('/sign-in?callbackUrl=/')
+    }
+  }, [session, router])
+
+  // Show loading while redirecting
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+      <div className="text-slate-400">Redirecting...</div>
+    </div>
+  )
+
+  /* Original support form code kept for reference - uncomment to re-enable
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)

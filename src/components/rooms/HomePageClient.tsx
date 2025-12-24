@@ -112,8 +112,8 @@ export function HomePageClient({
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Team Workspace</h1>
-            <p className="text-slate-400 mt-1">Internal collaboration rooms and customer support tickets in one place</p>
+            <h1 className="text-3xl font-bold">Workspace</h1>
+            <p className="text-slate-400 mt-1">Enterprise collaboration platform</p>
           </div>
           <div className="flex items-center gap-4">
             {/* Support CTA removed - internal employees don't need it */}
@@ -123,7 +123,7 @@ export function HomePageClient({
                 href="/tickets"
                 className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors"
               >
-                View all tickets →
+                View all issues →
               </Link>
             )}
             <CreateRoomButton />

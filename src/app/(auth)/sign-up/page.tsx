@@ -17,12 +17,10 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Redirect authenticated users away from sign-up page
+  // Redirect all users away from sign-up page (demo mode - account creation disabled)
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      router.push('/')
-    }
-  }, [status, session, router])
+    router.push('/sign-in?message=Account creation is restricted. Please contact your administrator.')
+  }, [router])
 
   // Show loading while checking session
   if (status === 'loading' || (status === 'authenticated' && session?.user)) {
@@ -82,8 +80,8 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-2">Accessly</h1>
-          <p className="text-slate-400">Create your account</p>
+          <h1 className="text-4xl font-bold mb-2">SolaceDesk</h1>
+          <p className="text-slate-400">Account creation is restricted</p>
         </div>
 
         {error && (

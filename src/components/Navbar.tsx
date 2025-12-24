@@ -58,7 +58,7 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="text-xl font-bold text-cyan-300">
-              Accessly
+              SolaceDesk
             </Link>
             <div className="text-slate-400">Loading...</div>
           </div>
@@ -76,7 +76,7 @@ export function Navbar() {
               href="/"
               className="text-xl font-bold text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 rounded"
             >
-              Accessly
+              SolaceDesk
             </Link>
             <Link
               href="/sign-in"
@@ -136,54 +136,36 @@ export function Navbar() {
             href="/"
             className="text-xl font-bold text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 rounded"
           >
-            Accessly
+            SolaceDesk
           </Link>
 
           <div className="flex items-center gap-6 flex-1 max-w-2xl mx-6">
-            {/* Search bar - only shown for internal employees (not external customers) */}
-            {isInternalUser === true && (
-              <SearchBar className="flex-1" />
-            )}
+            {/* Search bar - shown for all authenticated users */}
+            <SearchBar className="flex-1" />
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Support Link - visible only for external customers (not internal employees) */}
-            {isInternalUser === false && (
-              <Link
-                href="/support"
-                className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-              >
-                Support
-              </Link>
-            )}
 
-            {/* Admin Panel Link - visible only for admins */}
+            {/* System Dashboard Link - visible only for admins */}
             {session.user.role === 'ADMIN' && (
               <Link
                 href="/admin"
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-slate-900 font-medium"
               >
-                Admin
+                Dashboard
               </Link>
             )}
 
-            {/* Tickets Link - visible only for admins */}
+            {/* Issues Link - visible only for admins */}
             {session.user.role === 'ADMIN' && (
               <Link
                 href="/tickets"
                 className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900"
               >
-                Tickets
+                Issues
               </Link>
             )}
 
-            {/* Activity Feed Link - visible for all authenticated users */}
-            <Link
-              href="/activity"
-              className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-            >
-              Activity
-            </Link>
           </div>
 
           <div className="flex items-center gap-6">

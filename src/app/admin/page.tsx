@@ -36,7 +36,7 @@ export default async function AdminPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Admin Panel</h1>
+            <h1 className="text-3xl font-bold">System Dashboard</h1>
             <p className="text-slate-400 mt-1">
               System administration and user management
             </p>
@@ -99,7 +99,7 @@ export default async function AdminPage() {
           <CreateRoomForm />
         </div>
 
-        {/* Admin Panel with Actions */}
+        {/* System Management with Actions */}
         <AdminPanel />
       </div>
     </div>

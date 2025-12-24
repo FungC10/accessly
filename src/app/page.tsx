@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation'
 import { HomePageClient } from '@/components/rooms/HomePageClient'
-import { CustomerPortal } from '@/components/customer/CustomerPortal'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { RoomType } from '@prisma/client'
-import { isExternalCustomer } from '@/lib/user-utils'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,25 +19,15 @@ export default async function Home({
     redirect('/sign-in?callbackUrl=/')
   }
 
-  // Verify user exists in DB and get their department
+  // Verify user exists in DB
   const dbUser = await prisma.user.findUnique({
     where: { email: session.user.email || '' },
-    select: { id: true, role: true, department: true },
+    select: { id: true, role: true },
   })
 
   if (!dbUser) {
     redirect('/sign-in?callbackUrl=/')
   }
-
-  // Check if user is external customer FIRST - before fetching any rooms
-  const userIsExternal = await isExternalCustomer(dbUser.id)
-
-  // If external customer, show Customer Portal immediately
-  if (userIsExternal) {
-    return <CustomerPortal />
-  }
-
-  const isAdmin = dbUser.role === 'ADMIN'
 
   const params = await searchParams
   const q = params.q || ''
@@ -50,11 +38,7 @@ export default async function Home({
 
   // Fetch "My Rooms" - rooms user is a member of, EXCLUDING DMs and TICKETs
   // Home page only shows PUBLIC and PRIVATE team/community rooms
-  // Visibility rules:
-  //   - PRIVATE rooms: only visible to members (admins don't auto-see)
-  //   - PUBLIC rooms: 
-  //     * Admins see all PUBLIC rooms
-  //     * Non-admins see only PUBLIC rooms matching their department or PUBLIC_GLOBAL
+  // Simplified: All users see all PUBLIC rooms (no department filtering)
   const myMemberships = await prisma.roomMember.findMany({
     where: { 
       userId: dbUser.id,
@@ -120,26 +104,8 @@ export default async function Home({
       role: m.role,
       lastMessage: m.room.messages[0] || null,
     }))
-    // Filter: PRIVATE rooms only if user is a member (already handled by query)
-    // PUBLIC rooms: filter by department rules
-    .filter((r) => {
-      if (r.type === 'PRIVATE') {
-        // PRIVATE rooms: only if user is a member (already in memberships)
-        return true
-      }
-      if (r.type === 'PUBLIC') {
-        if (isAdmin) {
-          // Admins see all PUBLIC rooms
-          return true
-        }
-        // Non-admins: only see PUBLIC rooms matching their department or PUBLIC_GLOBAL
-        return r.department === dbUser.department || r.department === null
-      }
-      return false
-    })
 
-  // For non-admins: also include PUBLIC rooms matching their department that they're not members of
-  // For admins: also include all PUBLIC rooms they're not members of
+  // Also include PUBLIC rooms user is not a member of (simplified: all PUBLIC rooms visible)
   // PRIVATE rooms are NOT included here (invite-only)
   const memberRoomIds = new Set(myRooms.map((r) => r.id))
   
@@ -151,28 +117,18 @@ export default async function Home({
       id: {
         notIn: Array.from(memberRoomIds),
       },
-      // For admins: show all PUBLIC rooms
-      // For non-admins: only show rooms matching their department or PUBLIC_GLOBAL
-      ...(isAdmin
-        ? {}
-        : {
-            OR: [
-              { department: dbUser.department }, // User's department
-              { department: null }, // PUBLIC_GLOBAL
-            ],
-          }),
+      // Simplified: All PUBLIC rooms visible to all users (no department filtering)
     },
     select: {
       id: true,
       name: true,
       title: true,
       description: true,
-      tags: true,
-      type: true,
-      isPrivate: true,
-      createdAt: true,
-      department: true,
-      creator: {
+          tags: true,
+          type: true,
+          isPrivate: true,
+          createdAt: true,
+          creator: {
         select: {
           id: true,
           name: true,

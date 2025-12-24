@@ -420,7 +420,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                     className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors inline-flex items-center gap-1"
                   >
                     <span>←</span>
-                    <span>Support Tickets</span>
+                    <span>Issues</span>
                   </Link>
                 </div>
               )}

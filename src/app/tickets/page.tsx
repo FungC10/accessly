@@ -28,9 +28,9 @@ export default async function TicketsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Support Tickets</h1>
+            <h1 className="text-3xl font-bold">Issues</h1>
             <p className="text-slate-400 mt-1">
-              Manage and respond to support tickets
+              Manage and respond to internal issues
             </p>
           </div>
         </div>
