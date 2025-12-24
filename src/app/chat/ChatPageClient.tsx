@@ -324,13 +324,21 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                 }
                 return
               } else {
-                // No access
-                alert(`Cannot access room: ${room.type === 'TICKET' ? 'You do not have access to this ticket' : 'Room is private or requires invitation'}`)
+                // No access - redirect to appropriate page
+                if (room.type === 'TICKET') {
+                  // For tickets, redirect to issues page
+                  router.push('/issues')
+                } else {
+                  // For other rooms, redirect to home
+                  router.push('/')
+                }
+                return
               }
             } else {
-              // Room doesn't exist or access denied
+              // Room doesn't exist or access denied - redirect to home
               console.warn('Cannot access room:', roomData.message)
-              alert(`Cannot access room: ${roomData.message || 'Room not found or access denied'}`)
+              router.push('/')
+              return
             }
           } catch (err) {
             console.error('Error checking room access:', err)

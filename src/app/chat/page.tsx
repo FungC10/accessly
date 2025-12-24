@@ -69,6 +69,23 @@ export default async function ChatPage({
         redirect('/')
       }
     }
+
+    // For TICKET rooms, check if user is a member or admin
+    if (room.type === RoomType.TICKET) {
+      const membership = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: dbUser.id,
+            roomId: initialRoomId,
+          },
+        },
+      })
+      // Admins can access all tickets, non-admins need to be members
+      if (!membership && !isAdmin) {
+        // Redirect to issues page for better UX
+        redirect('/issues')
+      }
+    }
   }
 
   // View parameter is deprecated - we only show rooms now (no DM tab)
