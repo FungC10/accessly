@@ -580,7 +580,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {session?.user?.role === 'ADMIN' ? 'Tickets' : 'Issues'}
+                Issues
               </button>
             </div>
           </div>
@@ -646,7 +646,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
               if (ticketRooms.length === 0) {
                 return (
                   <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-8 text-center">
-                    <p className="text-slate-400 mb-4">No tickets found</p>
+                    <p className="text-slate-400 mb-4">No issues found</p>
                     <a
                       href="/support"
                       className="inline-block px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-sm transition-colors"
@@ -876,7 +876,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
               if (isLoadingTickets) {
                 return (
                   <div className="text-xs text-slate-500 p-4 text-center">
-                    Loading tickets...
+                    Loading issues...
                   </div>
                 )
               }
@@ -884,13 +884,13 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
               if (tickets.length === 0) {
                 return (
                   <div className="text-xs text-slate-500 p-4 text-center">
-                    <div>{session?.user?.role === 'ADMIN' ? 'No tickets found' : 'No issues assigned to you'}</div>
+                    <div>{session?.user?.role === 'ADMIN' ? 'No issues found' : 'No issues assigned to you'}</div>
                     {session?.user?.role === 'ADMIN' ? (
                       <Link
                         href="/tickets"
                         className="mt-2 inline-block px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-sm transition-colors"
                       >
-                        View All Tickets
+                        View All Issues
                       </Link>
                     ) : (
                       <p className="mt-2 text-xs text-slate-600">Issues will appear here once you're assigned to them</p>
