@@ -64,7 +64,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   })
   const [inviteEmail, setInviteEmail] = useState('')
   const [assignToUserId, setAssignToUserId] = useState('')
-  const [adminUsers, setAdminUsers] = useState<any[]>([])
+  const [allUsers, setAllUsers] = useState<any[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
@@ -74,19 +74,20 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
 
   useEffect(() => {
     if (showAssign) {
-      fetchAdminUsers()
+      fetchAllUsers()
     }
   }, [showAssign])
 
-  const fetchAdminUsers = async () => {
+  const fetchAllUsers = async () => {
     try {
-      const response = await fetch('/api/admin/users?role=ADMIN')
+      // Fetch all users (not just admins) so admins can assign issues to any user
+      const response = await fetch('/api/admin/users')
       const data = await response.json()
       if (data.ok && data.data?.users) {
-        setAdminUsers(data.data.users)
+        setAllUsers(data.data.users)
       }
     } catch (err) {
-      console.error('Error fetching admin users:', err)
+      console.error('Error fetching users:', err)
     }
   }
 
@@ -343,7 +344,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     (roomDetails?.userRole === RoomRole.OWNER || 
      roomDetails?.userRole === RoomRole.MODERATOR || 
      (roomDetails?.isAdmin && (roomDetails?.type === 'PRIVATE' || roomDetails?.type === 'TICKET')))
-  const canAssign = roomDetails?.type === 'TICKET' && roomDetails?.userRole === RoomRole.OWNER
+  // Admins can assign issues even if not OWNER
+  const canAssign = roomDetails?.type === 'TICKET' && (roomDetails?.userRole === RoomRole.OWNER || roomDetails?.isAdmin)
   // Admin can change ticket status
   const canChangeStatus = roomDetails?.type === 'TICKET' && (roomDetails?.isAdmin || session?.user?.role === 'ADMIN')
 
@@ -607,11 +609,11 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {showAssign && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Assign Ticket</h3>
+            <h3 className="text-lg font-semibold mb-4">Assign Issue</h3>
             <form onSubmit={handleAssign} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Assign to Admin
+                  Assign to User
                 </label>
                 <select
                   value={assignToUserId}
@@ -619,10 +621,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
                   required
                 >
-                  <option value="">Select an admin...</option>
-                  {adminUsers.map((admin) => (
-                    <option key={admin.id} value={admin.id}>
-                      {admin.name || admin.email}
+                  <option value="">Select a user...</option>
+                  {allUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name || user.email} {user.role === 'ADMIN' ? '(Admin)' : ''}
                     </option>
                   ))}
                 </select>
