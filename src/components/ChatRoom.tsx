@@ -346,7 +346,11 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       }
 
       const el = messagesContainerRef.current
-      const atBottom = el ? isNearBottom(el, 100) : true
+      // Check scroll position BEFORE adding message
+      const wasAtBottom = el ? isNearBottom(el, 100) : true
+      
+      // Check if message is from current user (they just sent it, always scroll)
+      const isOwnMessage = m.userId === currentUserId || m.userId === session.user?.id
 
       upsertMessages(roomId, [m])
 
@@ -355,10 +359,44 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         toggleThread(roomId, m.parentMessageId)
       }
 
-      // Only snap to bottom if at/near bottom already (or if it's a reply to an expanded thread)
-      if (el && (atBottom || (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId)))) {
-        scrollToBottom(el)
-        setRoom(roomId, { scrollTop: el.scrollTop })
+      // Wait for DOM to update, then scroll if needed
+      // Always scroll for own messages, or if user was already at/near bottom
+      if (el && (isOwnMessage || wasAtBottom || (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId)))) {
+        // Use triple requestAnimationFrame to ensure DOM has fully updated
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const elAfterUpdate = messagesContainerRef.current
+              if (elAfterUpdate) {
+                // For own messages: always scroll (like sender)
+                // For received messages: check if user is at bottom AFTER message is added
+                // This handles the case where there's a small gap after first message
+                if (isOwnMessage) {
+                  // Sender: always scroll to bottom
+                  elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
+                } else {
+                  // Receiver: check if at bottom after message is added (more lenient check)
+                  // Use a larger threshold (200px) to account for small gaps
+                  const isAtBottomAfter = isNearBottom(elAfterUpdate, 200)
+                  if (isAtBottomAfter || wasAtBottom) {
+                    // Scroll if they were at bottom before OR are at bottom after
+                    elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
+                  }
+                }
+                
+                // Also handle thread expansion case
+                if (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId)) {
+                  elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
+                }
+                
+                // Force a reflow to ensure the scroll position is applied
+                void elAfterUpdate.offsetHeight
+                // Save scroll position
+                setRoom(roomId, { scrollTop: elAfterUpdate.scrollTop })
+              }
+            })
+          })
+        })
       }
     }
 
@@ -1038,11 +1076,7 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
                 )
               })
             })()}
-            {typingUsers.size > 0 && (
-              <div className="text-xs text-slate-500 italic py-2">
-                {Array.from(typingUsers.values()).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing...
-              </div>
-            )}
+            {/* Typing indicator removed to prevent scroll position issues */}
             <div ref={messagesEndRef} />
           </>
         )}

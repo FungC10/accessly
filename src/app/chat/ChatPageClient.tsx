@@ -415,7 +415,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
         return
       }
 
-      // Update chat store if this room is being viewed
+      // Always update chat store for real-time message display
       const { upsertMessages } = useChatStore.getState()
       upsertMessages(message.roomId, [{
         id: message.id,
@@ -429,47 +429,16 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
         reactions: message.reactions || null,
         user: message.user,
       }])
-      // Update the room list with the new last message
-      setMyRooms((prevRooms) => {
-        const roomIndex = prevRooms.findIndex((r) => r.id === message.roomId)
-        if (roomIndex === -1) {
-          // Room not in list, might need to fetch it
-          return prevRooms
-        }
 
-        // Update the room's lastMessage and updatedAt
-        // Note: We don't increment message count here as it may already be counted
-        // The count will be refreshed on next fetch
-        const updatedRooms = [...prevRooms]
-        updatedRooms[roomIndex] = {
-          ...updatedRooms[roomIndex],
-          lastMessage: {
-            id: message.id,
-            content: message.content,
-            createdAt: message.createdAt,
-            user: message.user,
-          },
-          updatedAt: message.createdAt,
-        }
+      // Determine room type - check both myRooms and tickets list
+      const roomInMyRooms = myRooms.find((r) => r.id === message.roomId)
+      const ticketInList = tickets.find((t) => t.roomId === message.roomId || t.id === message.roomId)
+      const isTicketRoom = roomInMyRooms?.type === 'TICKET' || !!ticketInList
 
-        // Re-sort by last activity (most recent first)
-        return updatedRooms.sort((a, b) => {
-          const aTime = a.lastMessage?.createdAt
-            ? new Date(a.lastMessage.createdAt).getTime()
-            : a.updatedAt
-            ? new Date(a.updatedAt).getTime()
-            : 0
-          const bTime = b.lastMessage?.createdAt
-            ? new Date(b.lastMessage.createdAt).getTime()
-            : b.updatedAt
-            ? new Date(b.updatedAt).getTime()
-            : 0
-          return bTime - aTime
-        })
-      })
-
-      // Also update tickets list if we're on the tickets tab
-      if (activeTab === 'tickets') {
+      // Update the appropriate list based on room type, not active tab
+      // TICKET rooms update tickets list, other rooms update myRooms
+      if (isTicketRoom) {
+        // Update tickets list (for Issues tab)
         setTickets((prevTickets) => {
           const ticketIndex = prevTickets.findIndex((t) => t.roomId === message.roomId || t.id === message.roomId)
           if (ticketIndex === -1) {
@@ -503,6 +472,43 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
             return bTime - aTime
           })
         })
+      } else {
+        // Update room list (for Rooms tab) - only for PUBLIC/PRIVATE rooms
+        setMyRooms((prevRooms) => {
+          const roomIndex = prevRooms.findIndex((r) => r.id === message.roomId)
+          if (roomIndex === -1) {
+            // Room not in list, might need to fetch it
+            return prevRooms
+          }
+
+          // Update the room's lastMessage and updatedAt
+          const updatedRooms = [...prevRooms]
+          updatedRooms[roomIndex] = {
+            ...updatedRooms[roomIndex],
+            lastMessage: {
+              id: message.id,
+              content: message.content,
+              createdAt: message.createdAt,
+              user: message.user,
+            },
+            updatedAt: message.createdAt,
+          }
+
+          // Re-sort by last activity (most recent first)
+          return updatedRooms.sort((a, b) => {
+            const aTime = a.lastMessage?.createdAt
+              ? new Date(a.lastMessage.createdAt).getTime()
+              : a.updatedAt
+              ? new Date(a.updatedAt).getTime()
+              : 0
+            const bTime = b.lastMessage?.createdAt
+              ? new Date(b.lastMessage.createdAt).getTime()
+              : b.updatedAt
+              ? new Date(b.updatedAt).getTime()
+              : 0
+            return bTime - aTime
+          })
+        })
       }
     }
 
@@ -515,7 +521,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
         socket.emit('room:leave', { roomId: room.id, userId: session.user.id })
       })
     }
-  }, [status, session?.user?.id, activeTab, myRooms])
+  }, [status, session?.user?.id, myRooms, tickets])
 
   if (status === 'loading' || isLoading) {
     return (
@@ -726,10 +732,11 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                 return cleaned || (type === 'TICKET' ? 'Ticket' : 'General')
               }
 
-              // Show PUBLIC, PRIVATE, and TICKET rooms (TICKET rooms where user is assigned)
+              // Show only PUBLIC and PRIVATE rooms in Rooms tab
+              // TICKET rooms should only appear in Issues tab
               // Sort by last activity (lastMessage createdAt or room updatedAt)
               const teamRooms = myRooms
-                .filter((r) => r.type === 'PUBLIC' || r.type === 'PRIVATE' || r.type === 'TICKET')
+                .filter((r) => r.type === 'PUBLIC' || r.type === 'PRIVATE')
                 .sort((a, b) => {
                   const aTime = a.lastMessage?.createdAt 
                     ? new Date(a.lastMessage.createdAt).getTime()
