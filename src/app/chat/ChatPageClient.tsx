@@ -176,6 +176,40 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
     }
   }, [activeTab, status, session?.user?.role, isExternalCustomer])
 
+  // Auto-switch tab based on room type when roomId changes
+  useEffect(() => {
+    if (!roomId || isExternalCustomer === true) return // External customers don't have tabs
+
+    // Find the room in myRooms to check its type
+    const currentRoom = myRooms.find((r) => r.id === roomId)
+    if (currentRoom) {
+      if (currentRoom.type === 'TICKET') {
+        setActiveTab('tickets')
+      } else if (currentRoom.type === 'PUBLIC' || currentRoom.type === 'PRIVATE') {
+        setActiveTab('rooms')
+      }
+    } else {
+      // Room not in myRooms yet - fetch room details to check type
+      const checkRoomType = async () => {
+        try {
+          const response = await fetch(`/api/chat/rooms/${roomId}`)
+          const data = await response.json()
+          if (data.ok && data.data?.room) {
+            const room = data.data.room
+            if (room.type === 'TICKET') {
+              setActiveTab('tickets')
+            } else if (room.type === 'PUBLIC' || room.type === 'PRIVATE') {
+              setActiveTab('rooms')
+            }
+          }
+        } catch (err) {
+          console.error('Error checking room type:', err)
+        }
+      }
+      checkRoomType()
+    }
+  }, [roomId, myRooms, isExternalCustomer])
+
   // Fetch rooms only when authenticated - depend on status, not session object
   useEffect(() => {
     if (status !== 'authenticated') {
@@ -241,6 +275,10 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
             const displayName = targetRoom.name || targetRoom.title || 'General'
             setRoomName(displayName)
             setRoomId(initialRoomId)
+            // Switch to tickets tab if it's a ticket
+            if (targetRoom.type === 'TICKET') {
+              setActiveTab('tickets')
+            }
             return
           }
           
@@ -314,6 +352,10 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
             const displayName = firstRoom.name || firstRoom.title || (firstRoom.type === 'TICKET' ? 'Ticket' : 'General')
             setRoomName(displayName)
             setRoomId(firstRoom.id)
+            // Switch to tickets tab if it's a ticket
+            if (firstRoom.type === 'TICKET') {
+              setActiveTab('tickets')
+            }
           } else {
             // No rooms available - clear selection
             setRoomId(null)
@@ -561,6 +603,10 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                         if (roomId !== room.id) {
                           setRoomName(room.name || room.title || 'General')
                           setRoomId(room.id)
+                          // Switch to tickets tab if it's a ticket
+                          if (room.type === 'TICKET') {
+                            setActiveTab('tickets')
+                          }
                           // Update URL (remove view param since we only have one view now)
                           const params = new URLSearchParams(window.location.search)
                           params.set('room', room.id)
@@ -685,6 +731,8 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                           if (roomId !== ticketRoomId) {
                             setRoomName(cleanTitle(ticket.title) || ticket.name || 'Ticket')
                             setRoomId(ticketRoomId)
+                            // Ensure we're on the tickets tab
+                            setActiveTab('tickets')
                             const params = new URLSearchParams(window.location.search)
                             params.set('room', ticketRoomId)
                             router.push(`/chat?${params.toString()}`, { scroll: false })
