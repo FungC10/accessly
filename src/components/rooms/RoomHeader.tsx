@@ -67,6 +67,11 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   const [allUsers, setAllUsers] = useState<any[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [userSearchQuery, setUserSearchQuery] = useState('')
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false)
+  const [showUserResults, setShowUserResults] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any | null>(null)
 
   useEffect(() => {
     fetchRoomDetails()
@@ -75,19 +80,60 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   useEffect(() => {
     if (showAssign || showInvite) {
       fetchAllUsers()
+      setUserSearchQuery('')
+      setFilteredUsers([])
+      setSelectedUser(null)
+      setAssignToUserId('')
     }
   }, [showAssign, showInvite])
 
-  const fetchAllUsers = async () => {
+  // Debounced search for users
+  useEffect(() => {
+    if (!showAssign) return
+
+    const timeoutId = setTimeout(() => {
+      if (userSearchQuery.trim()) {
+        fetchAllUsers(userSearchQuery.trim())
+      } else {
+        fetchAllUsers()
+      }
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [userSearchQuery, showAssign])
+
+  // Close user results dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (showUserResults && !target.closest('.user-search-container')) {
+        setShowUserResults(false)
+      }
+    }
+
+    if (showAssign) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserResults, showAssign])
+
+  const fetchAllUsers = async (searchQuery: string = '') => {
     try {
+      setIsSearchingUsers(true)
       // Fetch all users (not just admins) so admins can assign issues to any user
-      const response = await fetch('/api/admin/users')
+      const url = searchQuery
+        ? `/api/admin/users?search=${encodeURIComponent(searchQuery)}`
+        : '/api/admin/users'
+      const response = await fetch(url)
       const data = await response.json()
       if (data.ok && data.data?.users) {
         setAllUsers(data.data.users)
+        setFilteredUsers(data.data.users)
       }
     } catch (err) {
       console.error('Error fetching users:', err)
+    } finally {
+      setIsSearchingUsers(false)
     }
   }
 
@@ -219,6 +265,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
         const data = await response.json()
         if (data.ok) {
           setAssignToUserId('')
+          setUserSearchQuery('')
+          setSelectedUser(null)
           setShowAssign(false)
           alert('Ticket assigned successfully')
           fetchRoomDetails()
@@ -242,6 +290,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
         const data = await response.json()
         if (data.ok) {
           setAssignToUserId('')
+          setUserSearchQuery('')
+          setSelectedUser(null)
           setShowAssign(false)
           alert('User assigned successfully')
           fetchRoomDetails()
@@ -386,6 +436,22 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     switch (department) {
       case 'IT_SUPPORT':
         return 'IT Support'
+      case 'BILLING':
+        return 'Billing'
+      case 'PRODUCT':
+        return 'Product'
+      case 'GENERAL':
+        return 'General'
+      default:
+        return department
+    }
+  }
+
+  const getUserDepartmentLabel = (department: string | null) => {
+    if (!department) return null
+    switch (department) {
+      case 'ENGINEERING':
+        return 'Engineering'
       case 'BILLING':
         return 'Billing'
       case 'PRODUCT':
@@ -645,23 +711,75 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
               {roomDetails?.type === 'TICKET' ? 'Assign Issue' : 'Assign User'}
             </h3>
             <form onSubmit={handleAssign} className="space-y-4">
-              <div>
+              <div className="relative user-search-container">
                 <label className="block text-sm font-medium text-slate-300 mb-1">
                   Assign to User
                 </label>
-                <select
-                  value={assignToUserId}
-                  onChange={(e) => setAssignToUserId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
-                  required
-                >
-                  <option value="">Select a user...</option>
-                  {allUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name || user.email} {user.role === 'ADMIN' ? '(Admin)' : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => {
+                      setUserSearchQuery(e.target.value)
+                      setShowUserResults(true)
+                    }}
+                    onFocus={() => setShowUserResults(true)}
+                    placeholder="Search by name or email..."
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white placeholder-slate-500"
+                  />
+                  {isSearchingUsers && (
+                    <div className="absolute right-3 top-2.5">
+                      <div className="w-4 h-4 border-2 border-slate-500 border-t-cyan-400 rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+                {showUserResults && (
+                  <div className="absolute z-10 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg max-h-60 overflow-y-auto shadow-lg">
+                    {filteredUsers.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-400">
+                        {isSearchingUsers ? 'Searching...' : 'No users found'}
+                      </div>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => {
+                            setAssignToUserId(user.id)
+                            setSelectedUser(user)
+                            setUserSearchQuery(user.name || user.email)
+                            setShowUserResults(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-800 transition-colors ${
+                            assignToUserId === user.id ? 'bg-slate-700' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-white">
+                              {user.name || user.email}
+                            </div>
+                            {user.role === 'ADMIN' && (
+                              <span className="text-xs text-cyan-400">(Admin)</span>
+                            )}
+                            {user.department && (
+                              <span className="text-xs text-purple-400">
+                                ({getUserDepartmentLabel(user.department)})
+                              </span>
+                            )}
+                          </div>
+                          {user.name && (
+                            <div className="text-xs text-slate-400">{user.email}</div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+                {assignToUserId && selectedUser && !showUserResults && (
+                  <div className="mt-2 text-sm text-slate-300">
+                    Selected: {selectedUser.name || selectedUser.email}
+                  </div>
+                )}
               </div>
               <div className="flex gap-3">
                 <button
@@ -669,6 +787,9 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                   onClick={() => {
                     setShowAssign(false)
                     setAssignToUserId('')
+                    setUserSearchQuery('')
+                    setShowUserResults(false)
+                    setSelectedUser(null)
                   }}
                   className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded"
                   disabled={isAssigning}

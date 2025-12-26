@@ -37,10 +37,19 @@ export async function GET(request: Request) {
     // Get query parameters
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role') as Role | null
+    const search = searchParams.get('search')?.trim() || null
 
     const where: any = {}
     if (role) {
       where.role = role
+    }
+    
+    // Add search filter for name or email
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ]
     }
 
     const users = await prisma.user.findMany({
@@ -50,6 +59,7 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         role: true,
+        department: true,
         image: true,
         createdAt: true,
         ban: {
