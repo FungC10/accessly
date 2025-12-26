@@ -81,7 +81,7 @@ export function RoomFilters({ availableTags, onFilterChange }: RoomFiltersProps)
       {/* Filters Row */}
       <div className="flex flex-wrap items-center gap-4">
         {/* Tag Chips */}
-        <div className="flex flex-wrap gap-2 flex-1">
+        <div className="flex flex-wrap items-center gap-2 flex-1">
           {availableTags.slice(0, 10).map((tag) => (
             <button
               key={tag}
@@ -109,7 +109,7 @@ export function RoomFilters({ availableTags, onFilterChange }: RoomFiltersProps)
         <select
           value={sortBy}
           onChange={(e) => handleSortChange(e.target.value)}
-          className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+          className="px-4 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 flex-shrink-0"
         >
           <option value="active">Most Active</option>
           <option value="new">Newest</option>
