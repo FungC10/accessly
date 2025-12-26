@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { RoomRole } from '@prisma/client'
@@ -84,6 +84,25 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   const [showInviteUserResults, setShowInviteUserResults] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any | null>(null)
   const [selectedInviteUser, setSelectedInviteUser] = useState<any | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  // Fetch current user's database ID to match with user IDs from API
+  useEffect(() => {
+    if (session?.user?.email) {
+      fetch('/api/debug/session')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok && data.dbUser?.id) {
+            setCurrentUserId(data.dbUser.id)
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch current user ID:', err)
+          // Fallback to session ID if fetch fails
+          setCurrentUserId(session?.user?.id ?? null)
+        })
+    }
+  }, [session?.user?.email, session?.user?.id])
 
   useEffect(() => {
     fetchRoomDetails()
@@ -557,6 +576,30 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     }
   }
 
+  // Filter out current user from assign search results
+  const filteredAssignUsers = useMemo(() => {
+    return filteredUsers.filter((user) => {
+      // Filter out current user by both ID and email for safety
+      const isCurrentUser = 
+        (currentUserId && user.id === currentUserId) ||
+        (session?.user?.id && user.id === session?.user?.id) ||
+        (session?.user?.email && user.email === session?.user?.email)
+      return !isCurrentUser
+    })
+  }, [filteredUsers, currentUserId, session?.user?.id, session?.user?.email])
+
+  // Filter out current user from invite search results
+  const filteredInviteUsersList = useMemo(() => {
+    return filteredInviteUsers.filter((user) => {
+      // Filter out current user by both ID and email for safety
+      const isCurrentUser = 
+        (currentUserId && user.id === currentUserId) ||
+        (session?.user?.id && user.id === session?.user?.id) ||
+        (session?.user?.email && user.email === session?.user?.email)
+      return !isCurrentUser
+    })
+  }, [filteredInviteUsers, currentUserId, session?.user?.id, session?.user?.email])
+
   return (
     <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
       <div className="flex items-start justify-between mb-2">
@@ -802,12 +845,12 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                 </div>
                 {showUserResults && (
                   <div className="absolute z-10 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg max-h-60 overflow-y-auto shadow-lg">
-                    {filteredUsers.length === 0 ? (
+                    {filteredAssignUsers.length === 0 ? (
                       <div className="px-3 py-2 text-sm text-slate-400">
                         {isSearchingUsers ? 'Searching...' : 'No users found'}
                       </div>
                     ) : (
-                      filteredUsers.map((user) => (
+                      filteredAssignUsers.map((user) => (
                         <button
                           key={user.id}
                           type="button"
@@ -910,12 +953,12 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                 </div>
                 {showInviteUserResults && (
                   <div className="absolute z-10 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg max-h-60 overflow-y-auto shadow-lg">
-                    {filteredInviteUsers.length === 0 ? (
+                    {filteredInviteUsersList.length === 0 ? (
                       <div className="px-3 py-2 text-sm text-slate-400">
                         {isSearchingInviteUsers ? 'Searching...' : 'No users found'}
                       </div>
                     ) : (
-                      filteredInviteUsers.map((user) => (
+                      filteredInviteUsersList.map((user) => (
                         <button
                           key={user.id}
                           type="button"
