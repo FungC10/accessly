@@ -398,7 +398,8 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
                         💬
                       </button>
                     )}
-                    {canEdit && withinEditWindow && (
+                    {/* Edit/Delete buttons - disabled for replies for now */}
+                    {/* {canEdit && withinEditWindow && !isReply && (
                       <>
                         <button
                           onClick={() => setIsEditing(true)}
@@ -416,7 +417,7 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
                           🗑️
                         </button>
                       </>
-                    )}
+                    )} */}
                   </div>
                 )
               })()}
