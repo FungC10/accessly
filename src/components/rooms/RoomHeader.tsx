@@ -41,6 +41,12 @@ interface RoomDetails {
     email: string
   } | null
   averageResponseTime: number | null
+  otherUser?: {
+    id: string
+    name: string | null
+    email: string | null
+    image: string | null
+  } | null
   _count: {
     members: number
     messages: number
@@ -62,15 +68,22 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     tags: '',
   })
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteUserId, setInviteUserId] = useState('')
   const [assignToUserId, setAssignToUserId] = useState('')
   const [allUsers, setAllUsers] = useState<any[]>([])
+  const [allInviteUsers, setAllInviteUsers] = useState<any[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [userSearchQuery, setUserSearchQuery] = useState('')
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('')
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [filteredInviteUsers, setFilteredInviteUsers] = useState<any[]>([])
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
+  const [isSearchingInviteUsers, setIsSearchingInviteUsers] = useState(false)
   const [showUserResults, setShowUserResults] = useState(false)
+  const [showInviteUserResults, setShowInviteUserResults] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any | null>(null)
+  const [selectedInviteUser, setSelectedInviteUser] = useState<any | null>(null)
 
   useEffect(() => {
     fetchRoomDetails()
@@ -82,16 +95,23 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   }, [roomId])
 
   useEffect(() => {
-    if (showAssign || showInvite) {
+    if (showAssign) {
       fetchAllUsers()
       setUserSearchQuery('')
       setFilteredUsers([])
       setSelectedUser(null)
       setAssignToUserId('')
     }
+    if (showInvite) {
+      fetchAllUsersForInvite()
+      setInviteSearchQuery('')
+      setSelectedInviteUser(null)
+      setInviteUserId('')
+      setInviteEmail('')
+    }
   }, [showAssign, showInvite])
 
-  // Debounced search for users
+  // Debounced search for users (Assign modal)
   useEffect(() => {
     if (!showAssign) return
 
@@ -106,7 +126,8 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     return () => clearTimeout(timeoutId)
   }, [userSearchQuery, showAssign])
 
-  // Close user results dropdown when clicking outside
+
+  // Close user results dropdown when clicking outside (Assign modal)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
@@ -120,6 +141,25 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showUserResults, showAssign])
+
+  // Close user results dropdown when clicking outside (Invite modal)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (
+        showInviteUserResults &&
+        !target.closest('.invite-user-search-container') &&
+        !target.closest('.invite-modal-container')
+      ) {
+        setShowInviteUserResults(false)
+      }
+    }
+
+    if (showInvite) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showInviteUserResults, showInvite])
 
   const fetchAllUsers = async (searchQuery: string = '') => {
     try {
@@ -138,6 +178,22 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       console.error('Error fetching users:', err)
     } finally {
       setIsSearchingUsers(false)
+    }
+  }
+
+  const fetchAllUsersForInvite = async () => {
+    try {
+      setIsSearchingInviteUsers(true)
+      const response = await fetch('/api/admin/users')
+      const data = await response.json()
+      if (data.ok && data.data?.users) {
+        setAllInviteUsers(data.data.users)
+        setFilteredInviteUsers(data.data.users) // ✅ always set
+      }
+    } catch (err) {
+      console.error('Error fetching users for invite:', err)
+    } finally {
+      setIsSearchingInviteUsers(false)
     }
   }
 
@@ -214,23 +270,19 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!inviteUserId) {
+      alert('Please select a user')
+      return
+    }
+
     try {
-      // First, find user by email
-      const userResponse = await fetch(`/api/users/search?email=${encodeURIComponent(inviteEmail)}`)
-      const userData = await userResponse.json()
-
-      if (!userData.ok || !userData.user) {
-        alert('User not found')
-        return
-      }
-
       const response = await fetch(`/api/chat/rooms/${roomId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: userData.user.id,
+          userId: inviteUserId,
           role: 'MEMBER',
         }),
       })
@@ -238,6 +290,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       const data = await response.json()
       if (data.ok) {
         setInviteEmail('')
+        setInviteUserId('')
+        setInviteSearchQuery('')
+        setSelectedInviteUser(null)
+        setShowInviteUserResults(false)
         setShowInvite(false)
         alert('User invited successfully')
         fetchRoomDetails()
@@ -561,7 +617,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             <button
               onClick={() => setShowAssign(!showAssign)}
               className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 rounded"
-              title={roomDetails?.type === 'TICKET' ? 'Assign ticket' : 'Assign user'}
+              title={roomDetails?.type === 'TICKET' ? 'Assign ticket owner (replaces current owner)' : 'Assign user as moderator'}
             >
               👤 Assign
             </button>
@@ -569,10 +625,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
           {canInvite && (
             <button
               onClick={() => setShowInvite(!showInvite)}
-              className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
-              title="Invite member"
+              className="px-3 py-1 text-sm bg-cyan-600 hover:bg-cyan-700 rounded"
+              title="Add participant"
             >
-              ➕
+              ➕ Add Participant
             </button>
           )}
           <button
@@ -804,40 +860,97 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {/* Invite Modal */}
       {showInvite && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
+          <div className="invite-modal-container bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">
-              {roomDetails?.type === 'TICKET' ? 'Add Participant' : 'Invite User'}
+              Add Participant
             </h3>
             <form onSubmit={handleInvite} className="space-y-4">
-              <div>
+              <div className="relative invite-user-search-container">
                 <label className="block text-sm font-medium text-slate-300 mb-1">
-                  {roomDetails?.type === 'PRIVATE' ? 'Select User' : 'User Email'}
+                  Select User
                 </label>
-                {roomDetails?.type === 'PRIVATE' ? (
-                  <select
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
-                    required
-                    disabled={allUsers.length === 0}
-                  >
-                    <option value="">{allUsers.length === 0 ? 'Loading users...' : 'Select a user...'}</option>
-                    {allUsers.map((user) => (
-                      <option key={user.id} value={user.email}>
-                        {user.name || user.email} {user.role === 'ADMIN' ? '(Admin)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+                <div className="relative">
                   <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white"
-                    required
+                    type="text"
+                    value={inviteSearchQuery}
+                    onChange={(e) => {
+                      const query = e.target.value
+                      setInviteSearchQuery(query)
+                      setShowInviteUserResults(true)
+
+                      // Client-side filtering
+                      if (query.trim()) {
+                        const lower = query.toLowerCase()
+                        setFilteredInviteUsers(
+                          allInviteUsers.filter((user) =>
+                            (user.name?.toLowerCase().includes(lower) ||
+                             user.email.toLowerCase().includes(lower))
+                          )
+                        )
+                      } else {
+                        setFilteredInviteUsers(allInviteUsers)
+                      }
+                    }}
+                    onFocus={() => setShowInviteUserResults(true)}
+                    placeholder="Search by name or email..."
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-white placeholder-slate-500"
                   />
+                  {isSearchingInviteUsers && (
+                    <div className="absolute right-3 top-2.5">
+                      <div className="w-4 h-4 border-2 border-slate-500 border-t-cyan-400 rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+                {showInviteUserResults && (
+                  <div className="absolute z-10 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg max-h-60 overflow-y-auto shadow-lg">
+                    {filteredInviteUsers.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-400">
+                        {isSearchingInviteUsers ? 'Searching...' : 'No users found'}
+                      </div>
+                    ) : (
+                      filteredInviteUsers.map((user) => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => {
+                            setInviteUserId(user.id)
+                            setSelectedInviteUser(user)
+                            setInviteSearchQuery(user.name || user.email)
+                            setShowInviteUserResults(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-800 transition-colors ${
+                            inviteUserId === user.id ? 'bg-slate-700' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-white">
+                              {user.name || user.email}
+                            </div>
+                            {user.role === 'ADMIN' && (
+                              <span className="text-xs text-cyan-400">(Admin)</span>
+                            )}
+                            {user.department && (
+                              <span className="text-xs text-purple-400">
+                                ({getUserDepartmentLabel(user.department)})
+                              </span>
+                            )}
+                          </div>
+                          {user.name && (
+                            <div className="text-xs text-slate-400">{user.email}</div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 )}
+                {inviteUserId && selectedInviteUser && !showInviteUserResults && (
+                  <div className="mt-2 text-sm text-slate-300">
+                    Selected: {selectedInviteUser.name || selectedInviteUser.email}
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-slate-400">
+                  Adds user as a participant (MEMBER role). Use "Assign" to set as ticket owner.
+                </p>
               </div>
               <div className="flex gap-3">
                 <button
@@ -845,6 +958,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                   onClick={() => {
                     setShowInvite(false)
                     setInviteEmail('')
+                    setInviteUserId('')
+                    setInviteSearchQuery('')
+                    setShowInviteUserResults(false)
+                    setSelectedInviteUser(null)
                   }}
                   className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded"
                 >
@@ -852,9 +969,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded"
+                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded disabled:opacity-50"
+                  disabled={!inviteUserId}
                 >
-                  {roomDetails?.type === 'TICKET' ? 'Add Participant' : 'Invite'}
+                  Add Participant
                 </button>
               </div>
             </form>
