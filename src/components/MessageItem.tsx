@@ -345,8 +345,8 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
               <p className="text-sm whitespace-pre-wrap break-words">
                 {isDeleted ? '[Message deleted]' : message.content}
               </p>
-              {/* Edit/Delete/Reply buttons - positioned on the side */}
-              <div className={`absolute ${isOwn ? '-left-12' : '-right-12'} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
+              {/* Edit/Delete/Reply/Reaction buttons - positioned on the side */}
+              <div className={`absolute ${isOwn ? '-left-16' : '-right-16'} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
                 {/* Only show reply button for root messages (not replies) - we only support 2 levels */}
                 {!isDeleted && onReply && !message.parentMessageId && (
                   <button
@@ -356,6 +356,35 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
                   >
                     💬
                   </button>
+                )}
+                {/* Reaction button - only for non-own messages */}
+                {!isDeleted && !isOwn && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowReactions(!showReactions)}
+                      className="p-1 text-xs bg-slate-700 hover:bg-slate-600 rounded"
+                      title="Add reaction"
+                    >
+                      😀
+                    </button>
+                    {showReactions && (
+                      <div className="absolute bottom-full left-0 mb-2 flex gap-1 p-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+                        {COMMON_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              handleReaction(emoji)
+                              setShowReactions(false)
+                            }}
+                            className="text-xl hover:scale-125 transition-transform"
+                            title={emoji}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {canEdit && withinEditWindow && (
                   <>
@@ -387,37 +416,6 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
                   >
                     🧪
                   </button>
-                </div>
-              )}
-              {/* Reaction button - positioned at bottom-right of message bubble */}
-              {!isDeleted && !isOwn && (
-                <div className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowReactions(!showReactions)}
-                      className="p-1 text-xs bg-slate-700/90 hover:bg-slate-600 rounded backdrop-blur-sm"
-                      title="Add reaction"
-                    >
-                      😀
-                    </button>
-                    {showReactions && (
-                      <div className="absolute bottom-full right-0 mb-2 flex gap-1 p-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
-                        {COMMON_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => {
-                              handleReaction(emoji)
-                              setShowReactions(false)
-                            }}
-                            className="text-xl hover:scale-125 transition-transform"
-                            title={emoji}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
