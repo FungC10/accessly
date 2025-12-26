@@ -350,10 +350,11 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
               {(() => {
                 const showReplyButton = !isDeleted && onReply && !message.parentMessageId
                 const showEmojiButton = !isDeleted && !isOwn
-                // Adjust offset based on whether reply button is shown
-                const offsetClass = showReplyButton 
-                  ? (isOwn ? '-left-16' : '-right-16')
-                  : (isOwn ? '-left-12' : '-right-12')
+                // Adjust offset for replies to account for indentation (ml-8 + pl-4 = 3rem total)
+                // Replies need less offset to maintain same visual gap
+                const offsetClass = isReply
+                  ? (isOwn ? '-left-9' : '-right-9')
+                  : (isOwn ? '-left-16' : '-right-16')
                 
                 return (
                   <div className={`absolute ${offsetClass} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
