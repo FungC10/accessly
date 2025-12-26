@@ -31,6 +31,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   const upsertMessages = useChatStore((s) => s.upsertMessages)
   const toggleThread = useChatStore((s) => s.toggleThread)
   const isThreadExpanded = useChatStore((s) => s.isThreadExpanded)
+  // Subscribe to expandedThreads to trigger re-render when threads are toggled
+  const expandedThreads = useChatStore((s) => s.expandedThreads[roomId] ?? [])
 
   const messages: Msg[] = room?.messages ?? []
   
@@ -1049,10 +1051,10 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
                 // Get replies for this message
                 const replies = messages.filter((reply) => reply.parentMessageId === m.id)
                 const replyCount = replies.length
-                const expanded = isThreadExpanded(roomId, m.id)
+                const expanded = expandedThreads.includes(m.id) || threadId === m.id
                 
                 return (
-                  <div key={m.id} id={`message-${m.id}`}>
+                  <div key={`${m.id}-${expanded ? 'open' : 'closed'}`} id={`message-${m.id}`}>
                     <MessageItem 
                       message={m} 
                       currentUserId={currentUserId || session.user!.id}
@@ -1065,7 +1067,33 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
                         setRoom(roomId, { messages: updated })
                       }}
                       onReply={handleReply}
-                      onToggleThread={(messageId) => toggleThread(roomId, messageId)}
+                      onToggleThread={(messageId) => {
+                        const currentlyExpanded = isThreadExpanded(roomId, messageId)
+                        const isVisibleViaUrl = threadId === messageId
+
+                        // BOTH sources that cause "open" state
+                        const isOpen = currentlyExpanded || isVisibleViaUrl
+
+                        if (isOpen) {
+                          // CLOSE case
+                          toggleThread(roomId, messageId)   // Always close Zustand state
+
+                          // Remove URL param if exists
+                          const params = new URLSearchParams(searchParams.toString())
+                          if (params.get('thread') === messageId) {
+                            params.delete('thread')
+                            const newUrl = params.toString()
+                              ? `?${params.toString()}`
+                              : window.location.pathname
+                            
+                            router.replace(newUrl, { scroll: false })
+                          }
+
+                        } else {
+                          // OPEN case
+                          toggleThread(roomId, messageId)
+                        }
+                      }}
                       replyCount={replyCount}
                     />
                     {/* Show thread if expanded or if URL has thread parameter */}

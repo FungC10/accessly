@@ -28,7 +28,7 @@ type ChatStore = {
   expandedThreads: Record<string, string[]> // roomId -> array of expanded message IDs (for persistence)
   setRoom: (roomId: string, patch: Partial<RoomState>) => void
   getRoom: (roomId: string) => RoomState | undefined
-  upsertMessages: (roomId: string, msgs: Message[], { asPrepend }?: { asPrepend?: boolean }) => void
+  upsertMessages: (roomId: string, msgs: Message[], options?: { asPrepend?: boolean }) => void
   toggleThread: (roomId: string, messageId: string) => void
   isThreadExpanded: (roomId: string, messageId: string) => boolean
 }
@@ -46,7 +46,8 @@ export const useChatStore = create<ChatStore>()(
           messages: [], cursor: null, lastMessageId: null, scrollTop: null, lastFetchedAt: 0
         }), ...patch } } })),
 
-      upsertMessages: (roomId, msgs, { asPrepend } = {}) =>
+      upsertMessages: (roomId, msgs, options = {}) => {
+        const { asPrepend } = options
         set(s => {
           // DEBUG: Log what comes in (development only)
           if (process.env.NODE_ENV !== 'production') {
@@ -85,7 +86,8 @@ export const useChatStore = create<ChatStore>()(
           }
 
           return next
-        }),
+        })
+      },
 
       toggleThread: (roomId, messageId) =>
         set(s => {
