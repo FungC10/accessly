@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { RoomRole } from '@prisma/client'
 
 interface RoomHeaderProps {
@@ -524,18 +523,6 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
             </form>
           ) : (
             <>
-              {/* Breadcrumb for tickets */}
-              {roomDetails?.type === 'TICKET' && (
-                <div className="mb-2">
-                  <Link
-                    href="/tickets"
-                    className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors inline-flex items-center gap-1"
-                  >
-                    <span>←</span>
-                    <span>Issues</span>
-                  </Link>
-                </div>
-              )}
               <div className="flex items-center gap-3 mb-1">
                 {roomDetails?.type === 'DM' && roomDetails?.otherUser?.image && (
                   <img
