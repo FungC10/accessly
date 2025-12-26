@@ -540,7 +540,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
       {/* Room Sidebar - Show for all users (external customers see their tickets) */}
       <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full flex-shrink-0">
         <div className="p-4 border-b border-slate-800 flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">
               {isExternalCustomer === true ? 'My Tickets' : 'Chat'}
             </h2>
@@ -552,9 +552,6 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
                 Discover
               </a>
             )}
-          </div>
-          <div className="text-xs text-slate-500">
-            Signed in as: {session.user?.email}
           </div>
         </div>
 

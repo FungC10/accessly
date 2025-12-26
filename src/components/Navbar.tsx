@@ -193,17 +193,24 @@ export function Navbar() {
                 </div>
               )}
 
-              {/* User Name and Badge on same line */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs md:text-sm font-medium text-white whitespace-nowrap truncate">
-                  {session.user.name || session.user.email?.split('@')[0] || 'User'}
-                </span>
-                {/* Role/Department Badge */}
-                <span
-                  className={`px-1.5 py-0.5 text-xs font-semibold rounded border flex-shrink-0 ${badgeInfo.color}`}
-                >
-                  {badgeInfo.label}
-                </span>
+              {/* User Name, Email, and Badge */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs md:text-sm font-medium text-white whitespace-nowrap truncate">
+                    {session.user.name || session.user.email?.split('@')[0] || 'User'}
+                  </span>
+                  {/* Role/Department Badge */}
+                  <span
+                    className={`px-1.5 py-0.5 text-xs font-semibold rounded border flex-shrink-0 ${badgeInfo.color}`}
+                  >
+                    {badgeInfo.label}
+                  </span>
+                </div>
+                {session.user.email && (
+                  <span className="text-xs text-slate-400 truncate">
+                    {session.user.email}
+                  </span>
+                )}
               </div>
             </div>
 
