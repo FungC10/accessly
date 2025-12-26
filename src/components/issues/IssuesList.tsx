@@ -55,15 +55,30 @@ interface Ticket {
 interface IssuesListProps {
   isAdmin: boolean
   userId: string
+  createButtonLocation?: 'header' | 'component'
+  externalShowCreateModal?: boolean
+  onExternalShowCreateModalChange?: (show: boolean) => void
 }
 
-export function IssuesList({ isAdmin, userId }: IssuesListProps) {
+export function IssuesList({ 
+  isAdmin, 
+  userId, 
+  createButtonLocation = 'component',
+  externalShowCreateModal,
+  onExternalShowCreateModalChange
+}: IssuesListProps) {
   const router = useRouter()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'OPEN' | 'WAITING' | 'RESOLVED' | null>(null)
   const [showMyIssuesOnly, setShowMyIssuesOnly] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [internalShowCreateModal, setInternalShowCreateModal] = useState(false)
+  
+  // Use external modal state if provided, otherwise use internal
+  const showCreateModal = externalShowCreateModal !== undefined 
+    ? externalShowCreateModal 
+    : internalShowCreateModal
+  const setShowCreateModal = onExternalShowCreateModalChange || setInternalShowCreateModal
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -211,10 +226,11 @@ export function IssuesList({ isAdmin, userId }: IssuesListProps) {
     )
   }
 
+
   return (
     <div>
-      {/* Create Issue Button - only for admins */}
-      {isAdmin && (
+      {/* Create Issue Button - only for admins, render in component if location is 'component' */}
+      {isAdmin && createButtonLocation === 'component' && (
         <div className="mb-6 flex justify-end">
           <button
             onClick={() => setShowCreateModal(true)}
