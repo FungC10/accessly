@@ -42,13 +42,8 @@ export async function POST(
     const body = await request.json()
     const { assignToUserId } = body
 
-    if (!assignToUserId) {
-      return Response.json({
-        ok: false,
-        code: 'VALIDATION_ERROR',
-        message: 'assignToUserId is required',
-      }, { status: 400 })
-    }
+    // assignToUserId can be null to unassign (make issue unassigned)
+    // If provided, must be a valid user ID
 
     // Verify ticket exists and is a TICKET type
     const ticket = await prisma.room.findUnique({
@@ -64,101 +59,130 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Verify assignee exists (any role is allowed)
-    const assignee = await prisma.user.findUnique({
-      where: { id: assignToUserId },
-      select: { id: true, role: true, name: true, email: true },
-    })
+    // If assigning (not unassigning), verify assignee exists
+    let assignee: { id: string; name: string | null; email: string } | null = null
+    if (assignToUserId) {
+      assignee = await prisma.user.findUnique({
+        where: { id: assignToUserId },
+        select: { id: true, name: true, email: true },
+      })
 
-    if (!assignee) {
-      return Response.json({
-        ok: false,
-        code: 'INVALID_ASSIGNEE',
-        message: 'Assignee not found',
-      }, { status: 400 })
+      if (!assignee) {
+        return Response.json({
+          ok: false,
+          code: 'INVALID_ASSIGNEE',
+          message: 'Assignee not found',
+        }, { status: 400 })
+      }
     }
 
-    // Get current owner and existing member status in a single transaction
-    const [currentOwner, existingMember] = await Promise.all([
+    // Get current assignee (OWNER) and check if new assignee is already a member
+    const [currentAssignee, existingMember] = await Promise.all([
       prisma.roomMember.findFirst({
         where: {
           roomId: ticketId,
           role: RoomRole.OWNER,
         },
       }),
-      prisma.roomMember.findUnique({
+      assignToUserId ? prisma.roomMember.findUnique({
         where: {
           userId_roomId: {
             userId: assignToUserId,
             roomId: ticketId,
           },
         },
-      }),
+      }) : Promise.resolve(null),
     ])
 
-    // Prevent assigning to the current owner (no-op case)
-    if (currentOwner && currentOwner.userId === assignToUserId) {
+    // Prevent assigning to the current assignee (no-op case)
+    if (assignToUserId && currentAssignee && currentAssignee.userId === assignToUserId) {
       return Response.json({
         ok: true,
         data: {
           ticketId,
-          assignedTo: assignee.id,
+          assignedTo: assignee ? {
+            id: assignee.id,
+            name: assignee.name,
+            email: assignee.email,
+          } : null,
         },
       })
     }
 
-    // Perform owner swap in a transaction to ensure atomicity
+    // Perform assignment/unassignment in a transaction
     await prisma.$transaction(async (tx) => {
-      // Step 1: Demote current owner to MODERATOR (if exists and not the assignee)
-      if (currentOwner && currentOwner.userId !== assignToUserId) {
-        await tx.roomMember.update({
-          where: { id: currentOwner.id },
+      // Step 1: Remove current assignee (demote OWNER to MODERATOR, or remove if not needed)
+      if (currentAssignee) {
+        // If current assignee is not being reassigned to, demote to MODERATOR
+        // This allows them to continue participating
+        if (!assignToUserId || currentAssignee.userId !== assignToUserId) {
+          await tx.roomMember.update({
+            where: { id: currentAssignee.id },
+            data: { role: RoomRole.MODERATOR },
+          })
+        }
+      }
+
+      // Step 2: Ensure no other OWNERs exist (safety check)
+      if (assignToUserId) {
+        await tx.roomMember.updateMany({
+          where: {
+            roomId: ticketId,
+            role: RoomRole.OWNER,
+            userId: { not: assignToUserId },
+          },
+          data: { role: RoomRole.MODERATOR },
+        })
+      } else {
+        // Unassigning: remove all OWNERs
+        await tx.roomMember.updateMany({
+          where: {
+            roomId: ticketId,
+            role: RoomRole.OWNER,
+          },
           data: { role: RoomRole.MODERATOR },
         })
       }
 
-      // Step 2: Ensure no other OWNERs exist (safety check - update any other OWNERs to MODERATOR)
-      await tx.roomMember.updateMany({
-        where: {
-          roomId: ticketId,
-          role: RoomRole.OWNER,
-          userId: { not: assignToUserId },
-        },
-        data: { role: RoomRole.MODERATOR },
-      })
-
-      // Step 3: Make assignee the OWNER
-      if (existingMember) {
-        // Update existing member to OWNER
-        await tx.roomMember.update({
-          where: { id: existingMember.id },
-          data: { role: RoomRole.OWNER },
-        })
-      } else {
-        // Create new membership as OWNER
-        await tx.roomMember.create({
-          data: {
-            userId: assignToUserId,
-            roomId: ticketId,
-            role: RoomRole.OWNER,
-          },
-        })
+      // Step 3: Assign new assignee (if provided)
+      if (assignToUserId && assignee) {
+        if (existingMember) {
+          // Update existing member to OWNER (assignee)
+          await tx.roomMember.update({
+            where: { id: existingMember.id },
+            data: { role: RoomRole.OWNER },
+          })
+        } else {
+          // Create new membership as OWNER (assignee)
+          await tx.roomMember.create({
+            data: {
+              userId: assignToUserId,
+              roomId: ticketId,
+              role: RoomRole.OWNER,
+            },
+          })
+        }
       }
     })
 
     // Log audit action
     await logAction('ticket.assign', dbUser.id, 'room', ticketId, {
-      assignedToUserId: assignee.id,
-      assignedToName: assignee.name || assignee.email || 'Unknown',
+      assignedToUserId: assignee?.id || null,
+      assignedToName: assignee?.name || assignee?.email || null,
       ticketTitle: ticket.title,
-      previousOwnerId: currentOwner?.userId || null,
+      previousAssigneeId: currentAssignee?.userId || null,
+      action: assignToUserId ? 'assigned' : 'unassigned',
     })
 
     return Response.json({
       ok: true,
       data: {
         ticketId,
-        assignedTo: assignee.id,
+        assignedTo: assignee ? {
+          id: assignee.id,
+          name: assignee.name,
+          email: assignee.email,
+        } : null,
       },
     })
   } catch (error: any) {

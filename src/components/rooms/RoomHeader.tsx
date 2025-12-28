@@ -527,6 +527,19 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   // Admin can change ticket status
   const canChangeStatus = roomDetails?.type === 'TICKET' && (roomDetails?.isAdmin || session?.user?.role === 'ADMIN')
 
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'OPEN':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'WAITING':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'RESOLVED':
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+    }
+  }
+
   const getDepartmentLabel = (department: string | null) => {
     if (!department) return 'General'
     switch (department) {
@@ -790,10 +803,22 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
               </span>
             </div>
           )}
-          {roomDetails?.owner && (
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="font-medium text-slate-300">Assigned to:</span>
+            {roomDetails?.owner ? (
+              <span className="text-slate-200">{roomDetails.owner.name || roomDetails.owner.email}</span>
+            ) : (
+              <span className="text-slate-500 italic">Unassigned</span>
+            )}
+          </div>
+          {roomDetails?.status && (
             <div className="flex items-center gap-2 text-slate-400">
-              <span className="font-medium text-slate-300">Assigned to:</span>
-              <span>{roomDetails.owner.name || roomDetails.owner.email}</span>
+              <span className="font-medium text-slate-300">Status:</span>
+              <span
+                className={`px-2 py-1 text-xs font-semibold rounded border ${getStatusColor(roomDetails.status)}`}
+              >
+                {roomDetails.status}
+              </span>
             </div>
           )}
           {roomDetails?.lastResponder && (
@@ -1044,6 +1069,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
       {showMembers && (
         <MembersList
           roomId={roomId}
+          roomType={roomDetails?.type ?? null}
           userRole={roomDetails?.userRole ?? null}
           isAdmin={roomDetails?.isAdmin || session?.user?.role === 'ADMIN'}
           onClose={() => {
@@ -1059,12 +1085,14 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
 
 function MembersList({
   roomId,
+  roomType,
   userRole,
   isAdmin,
   onClose,
   onMemberRemoved,
 }: {
   roomId: string
+  roomType: 'PUBLIC' | 'PRIVATE' | 'DM' | 'TICKET' | null
   userRole: RoomRole | null
   isAdmin?: boolean
   onClose: () => void
@@ -1134,7 +1162,12 @@ function MembersList({
   }
 
   const handleTransferOwnership = async (userId: string) => {
-    if (!confirm('Transfer room ownership? You will become a moderator.')) return
+    const isIssueRoom = roomType === 'TICKET'
+    const confirmMessage = isIssueRoom
+      ? 'Reassign responsibility for this issue? The previous assignee will become a moderator.'
+      : 'Transfer room ownership? You will become a moderator.'
+    
+    if (!confirm(confirmMessage)) return
 
     try {
       const response = await fetch(`/api/chat/rooms/${roomId}/ownership`, {
@@ -1148,13 +1181,13 @@ function MembersList({
       if (data.ok) {
         fetchMembers()
         onMemberRemoved() // Refresh room details
-        alert('Ownership transferred successfully')
+        alert(isIssueRoom ? 'Responsibility reassigned successfully' : 'Ownership transferred successfully')
       } else {
-        alert(data.message || 'Failed to transfer ownership')
+        alert(data.message || (isIssueRoom ? 'Failed to reassign responsibility' : 'Failed to transfer ownership'))
       }
     } catch (err) {
       console.error('Error transferring ownership:', err)
-      alert('Failed to transfer ownership')
+      alert(isIssueRoom ? 'Failed to reassign responsibility' : 'Failed to transfer ownership')
     }
   }
 
@@ -1210,8 +1243,11 @@ function MembersList({
 
   // OWNER and ADMIN can remove members (MODERATOR can invite but not remove)
   const canRemove = userRole === RoomRole.OWNER || isAdmin
-  // OWNER and ADMIN can transfer ownership and change roles
-  const canTransferOwnership = userRole === RoomRole.OWNER || isAdmin
+  // For ISSUE (TICKET) rooms: ONLY ADMIN can transfer ownership (reassign responsibility)
+  // For other rooms (PUBLIC/PRIVATE): OWNER or ADMIN can transfer ownership
+  const canTransferOwnership = roomType === 'TICKET' 
+    ? isAdmin  // ISSUE rooms: admin only
+    : (userRole === RoomRole.OWNER || isAdmin)  // Other rooms: owner or admin
   const canChangeRoles = userRole === RoomRole.OWNER || isAdmin
 
   const handleMessageUser = async (userId: string) => {
@@ -1317,14 +1353,26 @@ function MembersList({
                   <div className="flex items-center gap-3 ml-4">
                     <span className="text-xs px-3 py-1.5 bg-slate-700 rounded font-medium">{member.role}</span>
                     {/* DM feature disabled - message button removed */}
-                    {canTransferOwnership && member.role !== RoomRole.OWNER && !isCurrentUser && (
-                      <button
-                        onClick={() => handleTransferOwnership(member.user.id)}
-                        className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 rounded font-medium whitespace-nowrap"
-                        title="Transfer ownership"
-                      >
-                        Make Owner
-                      </button>
+                    {member.role !== RoomRole.OWNER && !isCurrentUser && (
+                      roomType === 'TICKET' && !isAdmin ? (
+                        // For ISSUE rooms: Show disabled button with tooltip for non-admins
+                        <button
+                          disabled
+                          className="px-3 py-1.5 text-xs bg-slate-600 text-slate-400 rounded font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                          title="Only admins can reassign responsibility"
+                        >
+                          Make Owner
+                        </button>
+                      ) : canTransferOwnership ? (
+                        // For other rooms or admins: Show active button
+                        <button
+                          onClick={() => handleTransferOwnership(member.user.id)}
+                          className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 rounded font-medium whitespace-nowrap"
+                          title={roomType === 'TICKET' ? 'Reassign responsibility (admin only)' : 'Transfer ownership'}
+                        >
+                          Make Owner
+                        </button>
+                      ) : null
                     )}
                     {canChangeRoles && member.role === RoomRole.MEMBER && !isCurrentUser && (
                       <button

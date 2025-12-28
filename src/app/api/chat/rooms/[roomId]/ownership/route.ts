@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertRoomRole, getMembership } from '@/lib/rbac'
-import { RoomRole, Role } from '@prisma/client'
+import { RoomRole, Role, RoomType } from '@prisma/client'
 import { logAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -42,9 +42,34 @@ export async function POST(
 
     const isAdmin = currentUser.role === Role.ADMIN
 
-    // Check if current user is owner or admin (both can transfer ownership)
-    if (!isAdmin) {
-      await assertRoomRole(currentUser.id, roomId, [RoomRole.OWNER], prisma)
+    // Get room type to check if this is an ISSUE (TICKET) room
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      select: { type: true },
+    })
+
+    if (!room) {
+      return Response.json({ ok: false, code: 'NOT_FOUND', message: 'Room not found' }, { status: 404 })
+    }
+
+    // For ISSUE (TICKET) rooms: ONLY ADMIN can transfer ownership
+    // For other rooms (PUBLIC/PRIVATE): OWNER or ADMIN can transfer ownership
+    if (room.type === RoomType.TICKET) {
+      if (!isAdmin) {
+        return Response.json(
+          { 
+            ok: false, 
+            code: 'FORBIDDEN', 
+            message: 'Only admins can reassign responsibility for issues' 
+          },
+          { status: 403 }
+        )
+      }
+    } else {
+      // For non-TICKET rooms: OWNER or ADMIN can transfer ownership
+      if (!isAdmin) {
+        await assertRoomRole(currentUser.id, roomId, [RoomRole.OWNER], prisma)
+      }
     }
 
     // Check if new owner is a member

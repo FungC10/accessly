@@ -4,11 +4,15 @@
 
 This document summarizes the role management, assignment, and participant addition logic for both **Rooms** (PUBLIC, PRIVATE) and **Issues/Tickets** (TICKET) in the system.
 
+**Important:** ISSUE (TICKET) rooms have special semantics - they represent managed internal issues/tasks, not social chat rooms. Responsibility ("Assigned To") is controlled by ADMIN only.
+
 ## Key Changes (Latest)
 
-1. **Assign button removed** - Redundant with member list role management
-2. **Admin permissions expanded** - Admins can now manage all member roles
-3. **Unified role management** - All role changes happen through member list
+1. **ISSUE room semantics locked** - ISSUE rooms represent managed tasks, not social chat
+2. **ADMIN-only responsibility** - Only admins can reassign responsibility in ISSUE rooms
+3. **Assign button removed** - Redundant with member list role management
+4. **Admin permissions expanded** - Admins can now manage all member roles
+5. **Backend enforcement** - Server-side validation for ISSUE ownership rules
 
 ---
 
@@ -121,6 +125,46 @@ The **Assign** button has been **removed** because it was redundant with member 
 
 ---
 
+## ISSUE Room Semantics (TICKET Type)
+
+**ISSUE rooms represent managed internal issues/tasks, not social chat rooms.**
+
+### Key Principles
+
+1. **OWNER = "Assigned To" (Responsibility)**
+   - OWNER role represents the person responsible for the issue
+   - This is different from room ownership in PUBLIC/PRIVATE rooms
+   - OWNER can participate, collaborate, and provide updates
+   - OWNER **cannot** reassign responsibility
+
+2. **ADMIN Controls Responsibility**
+   - **Only ADMIN** can reassign responsibility (transfer ownership)
+   - Non-admins (including OWNER) cannot reassign
+   - This ensures responsibility is managed centrally
+
+3. **Participation vs Responsibility**
+   - OWNER can participate fully in discussions
+   - OWNER can add participants for collaboration
+   - OWNER cannot reassign responsibility
+   - Participants do NOT gain responsibility implicitly
+
+4. **Backend Enforcement**
+   - Server-side validation ensures only admins can transfer ownership in ISSUE rooms
+   - UI restrictions are backed by API-level enforcement
+
+### UI Behavior
+
+- **For ADMIN in ISSUE rooms:**
+  - "Make Owner" button is visible and active
+  - Tooltip: "Reassign responsibility (admin only)"
+
+- **For non-ADMIN in ISSUE rooms:**
+  - "Make Owner" button is **disabled** with tooltip
+  - Tooltip: "Only admins can reassign responsibility"
+  - Button is grayed out to indicate restriction
+
+---
+
 ## Differences: Rooms vs Issues (Tickets)
 
 ### Rooms (PUBLIC, PRIVATE)
@@ -137,17 +181,24 @@ The **Assign** button has been **removed** because it was redundant with member 
 | Feature | Behavior |
 |---------|----------|
 | **Add Participant** | Adds as MEMBER (default) or MODERATOR (optional) |
-| **Role Management** | Full role management via member list (MEMBER ↔ MODERATOR ↔ OWNER) |
-| **Ownership** | Can transfer ownership, previous owner becomes MODERATOR |
+| **Role Management** | OWNER/ADMIN can promote MEMBER ↔ MODERATOR (via member list) |
+| **Ownership (Responsibility)** | **ADMIN ONLY** - Can reassign responsibility (transfer ownership) |
 | **Assign Button** | ❌ Removed (redundant) |
-| **Special Note** | OWNER role represents "assigned to" for tickets |
+| **Special Note** | OWNER role represents "Assigned To" (responsibility), not just room ownership |
+| **Semantic Model** | ISSUE rooms are managed tasks, not social chat rooms |
 
-### Key Similarity
+### Key Differences
 
-**Both rooms and tickets now use the same unified role management system:**
-1. Add Participant → Adds as MEMBER
-2. Member List → Promote/Demote roles
-3. Member List → Transfer ownership
+**ISSUE (TICKET) rooms have special semantics:**
+- OWNER = "Assigned To" (responsibility), not just room ownership
+- **Only ADMIN** can reassign responsibility (transfer ownership)
+- OWNER can participate and collaborate but cannot reassign
+- Non-admins see disabled "Make Owner" button with tooltip
+
+**PUBLIC/PRIVATE rooms:**
+- OWNER = Room creator/manager
+- OWNER or ADMIN can transfer ownership
+- Standard role management applies
 
 ---
 
@@ -158,10 +209,11 @@ Admins have **absolute power** in all rooms:
 ### What Admins Can Do
 
 1. **Invite to any room** - Even if not a member
-2. **Change any member's role** - MEMBER ↔ MODERATOR
-3. **Transfer ownership** - In any room
-4. **Remove members** - From any room
-5. **View all tickets** - Even if not a member
+2. **Change any member's role** - MEMBER ↔ MODERATOR (in any room)
+3. **Transfer ownership** - In PUBLIC/PRIVATE rooms
+4. **Reassign responsibility** - **ONLY admins** can reassign ISSUE (TICKET) rooms
+5. **Remove members** - From any room
+6. **View all tickets** - Even if not a member
 
 ### Admin Restrictions
 
@@ -184,11 +236,14 @@ Admins have **absolute power** in all rooms:
   - Permissions: OWNER or ADMIN
   - Cannot set to OWNER (use ownership transfer)
 
-### Transfer Ownership
+### Transfer Ownership / Reassign Responsibility
 - **POST** `/api/chat/rooms/[roomId]/ownership`
   - Body: `{ newOwnerId: string }`
-  - Permissions: OWNER or ADMIN
+  - Permissions: 
+    - **PUBLIC/PRIVATE rooms**: OWNER or ADMIN
+    - **TICKET (ISSUE) rooms**: **ADMIN ONLY**
   - Demotes all current owners to MODERATOR
+  - For ISSUE rooms: Reassigns responsibility (only admins can do this)
 
 ### Remove Member
 - **DELETE** `/api/chat/rooms/[roomId]/members/[userId]`
@@ -228,11 +283,13 @@ Admins have **absolute power** in all rooms:
 
 ## Current State
 
-✅ **Unified System:** Rooms and tickets use the same role management
-✅ **No Redundancy:** Assign button removed, member list handles everything
-✅ **Admin Power:** Admins can manage all rooms
+✅ **Semantic Clarity:** ISSUE rooms are managed tasks, not social chat rooms
+✅ **Responsibility Control:** Only admins can reassign responsibility in ISSUE rooms
+✅ **Participation vs Responsibility:** OWNER can participate but cannot reassign
+✅ **Admin Power:** Admins can manage all rooms and reassign ISSUE responsibility
 ✅ **Clear Permissions:** Each role has well-defined permissions
 ✅ **Safe Operations:** Prevents dangerous operations (removing last owner, etc.)
+✅ **Backend Enforcement:** Server-side validation ensures ISSUE ownership rules
 
 ---
 

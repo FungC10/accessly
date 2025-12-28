@@ -180,12 +180,12 @@ export async function POST(request: Request) {
 
     const { title, description, department, assignToUserId } = validated.data
 
-    // If assignee specified, verify they exist (any role is allowed)
-    let assigneeId = dbUser.id // Default: self-assign
+    // Assignment: Only if explicitly provided (default is unassigned)
+    let assigneeId: string | null = null
     if (assignToUserId) {
       const assignee = await prisma.user.findUnique({
         where: { id: assignToUserId },
-        select: { id: true, role: true },
+        select: { id: true },
       })
 
       if (!assignee) {
@@ -229,25 +229,26 @@ export async function POST(request: Request) {
         },
       })
 
-      // Add assignee as OWNER (only one OWNER per ticket)
-      await tx.roomMember.create({
-        data: {
-          userId: assigneeId,
-          roomId: room.id,
-          role: 'OWNER',
-        },
-      })
-
-      // If creator is different from assignee, add creator as MODERATOR
-      if (assigneeId !== dbUser.id) {
+      // Add assignee as OWNER if specified (assignment = responsibility)
+      if (assigneeId) {
         await tx.roomMember.create({
           data: {
-            userId: dbUser.id,
+            userId: assigneeId,
             roomId: room.id,
-            role: 'MODERATOR',
+            role: 'OWNER',
           },
         })
       }
+
+      // Add creator as MODERATOR so they can manage the issue (invite participants, etc.)
+      // Creator can manage even if not assigned
+      await tx.roomMember.create({
+        data: {
+          userId: dbUser.id,
+          roomId: room.id,
+          role: 'MODERATOR',
+        },
+      })
 
       return room
     })

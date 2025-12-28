@@ -234,6 +234,12 @@ export async function GET(
     const isAdminForTicket = room.type === 'TICKET' && dbUser.role === Role.ADMIN
     const effectiveIsMember = !!membership || isAdminForTicket
 
+    // Find assignee (OWNER) for TICKET rooms - assignment is separate from room ownership
+    // For TICKET rooms, OWNER role represents assignment (responsibility), not room control
+    const assignee = room.type === 'TICKET' 
+      ? room.members.find(m => m.role === 'OWNER')?.user || null
+      : room.members[0]?.user || null
+
     return Response.json({
       ok: true,
       code: 'SUCCESS',
@@ -244,7 +250,7 @@ export async function GET(
           userRole: membership?.role || null,
           isMember: effectiveIsMember,
           isAdmin: isAdmin, // Include admin status for UI decisions
-          owner: room.members[0]?.user || null,
+          owner: assignee, // For TICKET: assignee (OWNER), for others: first member
           lastResponder,
           averageResponseTime,
         },

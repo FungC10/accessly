@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/tickets/my-tickets
- * List tickets for the logged-in user (external customers)
- * Returns only tickets where the user is a member
+ * List tickets for the logged-in user
+ * Returns tickets where the user is:
+ * - Assignee (OWNER role) OR
+ * - Room member (MEMBER, MODERATOR, or OWNER)
  */
 export async function GET(request: Request) {
   try {
