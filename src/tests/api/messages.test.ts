@@ -46,6 +46,15 @@ vi.mock('@/lib/io', () => ({
   getIO: vi.fn(() => null),
 }))
 
+// Mock user-utils - no external users anymore, always return false
+vi.mock('@/lib/user-utils', async () => {
+  const actual = await vi.importActual('@/lib/user-utils')
+  return {
+    ...actual,
+    isExternalCustomer: vi.fn().mockResolvedValue(false),
+  }
+})
+
 const { auth } = await import('@/lib/auth')
 
 describe('GET /api/chat/messages', () => {
@@ -90,11 +99,15 @@ describe('GET /api/chat/messages', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
+      role: 'USER',
+      department: null,
     } as any)
+    // Use PRIVATE room to trigger membership check
     vi.mocked(prisma.room.findUnique).mockResolvedValue({
       id: 'room-1',
-      type: 'PUBLIC',
-      isPrivate: false,
+      type: 'PRIVATE',
+      isPrivate: true,
+      department: null,
     } as any)
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue(null)
 
@@ -128,11 +141,14 @@ describe('GET /api/chat/messages', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
+      role: 'USER',
+      department: null,
     } as any)
     vi.mocked(prisma.room.findUnique).mockResolvedValue({
       id: 'room-1',
       type: 'PUBLIC',
       isPrivate: false,
+      department: null,
     } as any)
     vi.mocked(prisma.roomMember.findUnique).mockResolvedValue({
       id: 'member-1',
@@ -140,6 +156,10 @@ describe('GET /api/chat/messages', () => {
       roomId: 'room-1',
       role: 'MEMBER',
     } as any)
+    // Mock isExternalCustomer to return false
+    vi.doMock('@/lib/user-utils', () => ({
+      isExternalCustomer: vi.fn().mockResolvedValue(false),
+    }))
 
     vi.mocked(prisma.message.findMany).mockResolvedValue(mockMessages as any)
 

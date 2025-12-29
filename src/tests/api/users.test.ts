@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { GET } from '@/app/api/users/route'
+import { GET as GET_LIST } from '@/app/api/users/list/route'
 import { prisma } from '@/lib/prisma'
 import { assertRole, InsufficientRoleError } from '@/lib/rbac'
 import { Role } from '@prisma/client'
@@ -136,5 +137,144 @@ describe('GET /api/users', () => {
     expect(data.ok).toBe(false)
     expect(data.code).toBe('INTERNAL_ERROR')
     expect(data.message).toBe('Internal server error')
+  })
+})
+
+describe('GET /api/users/list - User Search (for room owners)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should allow any authenticated user to search users', async () => {
+    const mockUsers = [
+      {
+        id: 'user-1',
+        name: 'Alice',
+        email: 'alice@example.com',
+        image: null,
+      },
+      {
+        id: 'user-2',
+        name: 'Bob',
+        email: 'bob@example.com',
+        image: null,
+      },
+    ]
+
+    vi.mocked(auth).mockResolvedValue({
+      user: { id: 'user-1', email: 'user@test.com' },
+    } as any)
+
+    vi.mocked(prisma.user.findMany).mockResolvedValue(mockUsers as any)
+
+    const request = new Request('http://localhost/api/users/list?search=alice')
+    const response = await GET_LIST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.data.users).toHaveLength(2)
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          OR: [
+            { name: { contains: 'alice', mode: 'insensitive' } },
+            { email: { contains: 'alice', mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+        take: 100,
+      })
+    )
+  })
+
+  it('should return limited user info (no role, department, ban info)', async () => {
+    const mockUsers = [
+      {
+        id: 'user-1',
+        name: 'Alice',
+        email: 'alice@example.com',
+        image: null,
+      },
+    ]
+
+    vi.mocked(auth).mockResolvedValue({
+      user: { id: 'user-1', email: 'user@test.com' },
+    } as any)
+
+    vi.mocked(prisma.user.findMany).mockResolvedValue(mockUsers as any)
+
+    const request = new Request('http://localhost/api/users/list')
+    const response = await GET_LIST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.data.users[0]).not.toHaveProperty('role')
+    expect(data.data.users[0]).not.toHaveProperty('department')
+    expect(data.data.users[0]).toHaveProperty('id')
+    expect(data.data.users[0]).toHaveProperty('name')
+    expect(data.data.users[0]).toHaveProperty('email')
+    expect(data.data.users[0]).toHaveProperty('image')
+  })
+
+  it('should return 401 for unauthorized request', async () => {
+    vi.mocked(auth).mockResolvedValue(null)
+
+    const request = new Request('http://localhost/api/users/list')
+    const response = await GET_LIST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data.ok).toBe(false)
+    expect(data.code).toBe('UNAUTHORIZED')
+  })
+
+  it('should search by name or email', async () => {
+    vi.mocked(auth).mockResolvedValue({
+      user: { id: 'user-1', email: 'user@test.com' },
+    } as any)
+
+    vi.mocked(prisma.user.findMany).mockResolvedValue([])
+
+    const request = new Request('http://localhost/api/users/list?search=test@example.com')
+    const response = await GET_LIST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          OR: [
+            { name: { contains: 'test@example.com', mode: 'insensitive' } },
+            { email: { contains: 'test@example.com', mode: 'insensitive' } },
+          ],
+        },
+      })
+    )
+  })
+
+  it('should return all users when no search query', async () => {
+    vi.mocked(auth).mockResolvedValue({
+      user: { id: 'user-1', email: 'user@test.com' },
+    } as any)
+
+    vi.mocked(prisma.user.findMany).mockResolvedValue([])
+
+    const request = new Request('http://localhost/api/users/list')
+    const response = await GET_LIST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {},
+      })
+    )
   })
 })

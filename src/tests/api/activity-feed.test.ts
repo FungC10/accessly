@@ -172,42 +172,6 @@ describe('GET /api/activity/feed', () => {
     }
   })
 
-  it('should filter events for external customer', async () => {
-    const mockUser = {
-      id: 'user-1',
-      role: Role.USER,
-      department: null,
-    }
-
-    vi.mocked(auth).mockResolvedValue({
-      user: { id: 'user-1', email: 'customer@test.com' },
-    } as any)
-
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as any)
-    vi.mocked(isExternalCustomer).mockResolvedValue(true)
-    vi.mocked(prisma.roomMember.findMany).mockResolvedValue([
-      { roomId: 'ticket-1', room: { id: 'ticket-1', type: RoomType.TICKET } },
-    ] as any)
-
-    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([])
-    vi.mocked(prisma.room.findMany).mockResolvedValue([])
-    vi.mocked(prisma.message.findMany).mockResolvedValue([])
-
-    const request = new Request('http://localhost/api/activity/feed')
-    const response = await GET(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.ok).toBe(true)
-    // External customers should not see regular room events
-    expect(prisma.room.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          type: RoomType.TICKET,
-        }),
-      })
-    )
-  })
 
   it('should support pagination with cursor', async () => {
     const mockUser = {

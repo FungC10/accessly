@@ -40,6 +40,13 @@ vi.mock('@/lib/auth', () => ({
   auth: vi.fn(),
 }))
 
+vi.mock('@/lib/env', () => ({
+  env: {
+    DATABASE_URL: 'postgresql://test',
+    AUTH_SECRET: 'test-secret',
+  },
+}))
+
 const { auth } = await import('@/lib/auth')
 
 describe('POST /api/support/tickets', () => {
@@ -445,7 +452,11 @@ describe('POST /api/tickets/[ticketId]/assign', () => {
 
     expect(response.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(data.data.assignedTo).toBe('user-1')
+    expect(data.data.assignedTo).toMatchObject({
+      id: 'user-1',
+      name: 'Regular User',
+      email: 'user@test.com',
+    })
     expect(prisma.$transaction).toHaveBeenCalled()
   })
 
@@ -570,7 +581,11 @@ describe('POST /api/tickets/[ticketId]/assign', () => {
 
     expect(response.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(data.data.assignedTo).toBe('admin-2')
+    expect(data.data.assignedTo).toMatchObject({
+      id: 'admin-2',
+      name: 'Admin 2',
+      email: 'admin2@test.com',
+    })
   })
 })
 

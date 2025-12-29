@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { checkRate, rateLimitStore, RateLimitedError } from '@/lib/rateLimit'
+
+// Mock env module to avoid requiring DATABASE_URL and AUTH_SECRET
+vi.mock('@/lib/env', () => ({
+  env: {
+    DATABASE_URL: 'postgresql://test',
+    AUTH_SECRET: 'test-secret',
+    REDIS_URL: undefined,
+  },
+}))
 
 describe('checkRate', () => {
   beforeEach(() => {

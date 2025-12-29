@@ -2,9 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { POST } from '@/app/api/search/route'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { getAccessibleRoomIds } from '@/lib/room-access'
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
     message: {
       findMany: vi.fn(),
     },
@@ -12,11 +16,27 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
     },
+    roomMember: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
 vi.mock('@/lib/auth', () => ({
   auth: vi.fn(),
+}))
+
+// Mock user-utils - no external users anymore
+vi.mock('@/lib/user-utils', async () => {
+  const actual = await vi.importActual('@/lib/user-utils')
+  return {
+    ...actual,
+    isExternalCustomer: vi.fn().mockResolvedValue(false),
+  }
+})
+
+vi.mock('@/lib/room-access', () => ({
+  getAccessibleRoomIds: vi.fn().mockResolvedValue([]),
 }))
 
 describe('POST /api/search', () => {
@@ -48,6 +68,13 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
+    ;(prisma.roomMember.findMany as any).mockResolvedValue([])
+    ;(getAccessibleRoomIds as any).mockResolvedValue(['room-1'])
     ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',
@@ -92,6 +119,13 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
+    ;(prisma.roomMember.findMany as any).mockResolvedValue([])
+    ;(getAccessibleRoomIds as any).mockResolvedValue(['room-1'])
     ;(prisma.message.findMany as any).mockResolvedValue([])
     ;(prisma.room.findMany as any).mockResolvedValue([])
 
@@ -116,6 +150,13 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
+    ;(prisma.roomMember.findMany as any).mockResolvedValue([])
+    ;(getAccessibleRoomIds as any).mockResolvedValue(['room-1'])
     ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',
@@ -168,6 +209,13 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
+    ;(prisma.roomMember.findMany as any).mockResolvedValue([])
+    ;(getAccessibleRoomIds as any).mockResolvedValue(['room-1'])
     ;(prisma.message.findMany as any).mockResolvedValue([])
     ;(prisma.room.findMany as any).mockResolvedValue([
       {
@@ -204,6 +252,11 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
 
     const request = new Request('http://localhost/api/search', {
       method: 'POST',
@@ -225,6 +278,13 @@ describe('POST /api/search', () => {
     }
 
     ;(auth as any).mockResolvedValue({ user: mockUser })
+    ;(prisma.user.findUnique as any).mockResolvedValue({
+      id: 'user-1',
+      role: 'USER',
+      department: null,
+    })
+    ;(prisma.roomMember.findMany as any).mockResolvedValue([])
+    ;(getAccessibleRoomIds as any).mockResolvedValue(['room-1'])
     ;(prisma.message.findMany as any).mockResolvedValue([
       {
         id: 'msg-1',

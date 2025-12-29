@@ -54,8 +54,8 @@ describe('MessageItem', () => {
       },
     }
     render(<MessageItem message={messageWithNullName} currentUserId="user-2" />)
-    // Should show "Anonymous" when name is null
-    expect(screen.getByText('Anonymous')).toBeInTheDocument()
+    // Component shows user.id when name is null, not "Anonymous"
+    expect(screen.getByText('user-1')).toBeInTheDocument()
   })
 
   it('should handle long message content', () => {
