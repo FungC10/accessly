@@ -67,7 +67,7 @@ async function GETHandler(request: Request) {
     // Check if room exists
     const room = await prisma.room.findUnique({
       where: { id: roomId },
-      select: { type: true, isPrivate: true },
+      select: { type: true, isPrivate: true, department: true },
     })
 
     if (!room) {
@@ -81,7 +81,7 @@ async function GETHandler(request: Request) {
     // Verify the user exists in DB and get their actual ID
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, department: true },
     })
 
     if (!dbUser) {

@@ -155,7 +155,7 @@ export function HomePageClient({
               {sortedRooms.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedRooms.map((room) => (
-                    <RoomCard key={room.id} room={room} role={room.role} />
+                    <RoomCard key={room.id} room={room} role={room.role ?? undefined} />
                   ))}
                 </div>
               ) : (

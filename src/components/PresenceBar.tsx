@@ -7,6 +7,7 @@ import { getSocket } from '@/lib/socket'
 interface OnlineUser {
   userId: string
   socketId: string
+  roomId?: string
 }
 
 interface PresenceBarProps {

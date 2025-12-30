@@ -80,11 +80,11 @@ export async function getAccessibleRoomIds(
         ? {}
         : {
             OR: [
-              { department: userDepartment }, // User's department
+              { department: userDepartment as any }, // User's department
               { department: null }, // PUBLIC_GLOBAL
-            ],
+            ] as any,
           }),
-    },
+    } as any,
     select: { id: true },
   })
 

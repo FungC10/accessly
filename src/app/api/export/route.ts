@@ -124,8 +124,9 @@ export async function GET(request: Request) {
     })
 
     // Build hierarchical structure
-    const messageMap = new Map(allMessages.map(m => [m.id, { ...m, replies: [] }]))
-    const rootMessages: any[] = []
+    type MessageWithReplies = typeof allMessages[0] & { replies: MessageWithReplies[] }
+    const messageMap = new Map<string, MessageWithReplies>(allMessages.map(m => [m.id, { ...m, replies: [] as MessageWithReplies[] }]))
+    const rootMessages: MessageWithReplies[] = []
 
     for (const msg of allMessages) {
       const messageWithReplies = messageMap.get(msg.id)!
@@ -218,7 +219,7 @@ export async function GET(request: Request) {
         
         await browser.close()
         
-        return new Response(pdf, {
+        return new Response(pdf as any, {
           headers: {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="room-${roomId}-${Date.now()}.pdf"`,

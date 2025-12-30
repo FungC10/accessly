@@ -96,7 +96,7 @@ async function startServer() {
           methods: ['GET', 'POST'],
           credentials: true,
         },
-        adapter: createAdapter(pubClient, subClient),
+        adapter: createAdapter(pubClient, subClient) as any,
       })
     } else {
       // Standalone Socket.io server (single instance)

@@ -94,7 +94,7 @@ export function assertRole(session: Session | null, role: Role): void {
   const userRole = session?.user?.role
   if (!userRole) throw new InsufficientRoleError()
 
-  const order: Role[] = [Role.USER, Role.MODERATOR, Role.ADMIN]
+  const order: Role[] = [Role.USER, Role.ADMIN]
   if (order.indexOf(userRole) < order.indexOf(role)) {
     throw new InsufficientRoleError()
   }

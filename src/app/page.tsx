@@ -118,7 +118,10 @@ export default async function Home({
     .map((m) => ({
       ...m.room,
       role: m.role,
-      lastMessage: m.room.messages[0] || null,
+      lastMessage: m.room.messages[0] ? {
+        ...m.room.messages[0],
+        createdAt: m.room.messages[0].createdAt.toISOString(),
+      } : null,
     }))
 
   // Also include PUBLIC rooms user is not a member of (simplified: all PUBLIC rooms visible)
@@ -181,12 +184,15 @@ export default async function Home({
   // Add these rooms with null role (not a member yet, but visible due to department match or admin status)
   myRooms = [
     ...myRooms,
-    ...additionalRooms.map((r) => ({
-      ...r,
-      role: null,
-      lastMessage: r.messages[0] || null,
-    })),
-  ]
+      ...additionalRooms.map((r) => ({
+        ...r,
+        role: null as any,
+        lastMessage: r.messages[0] ? {
+          ...r.messages[0],
+          createdAt: r.messages[0].createdAt.toISOString(),
+        } : null,
+      })),
+    ]
 
   // Get all unique tags from rooms the user can see (for filter chips)
   const allTags = Array.from(

@@ -7,7 +7,7 @@ import { Role, RoomType } from '@prisma/client'
 
 export type MessageCoreResponse =
   | { status: number; body: { ok: true; data: any } }
-  | { status: number; body: { ok: false; code: string; message?: string } }
+  | { status: number; body: { ok: false; code: string; message?: string; details?: any } }
 
 export async function handlePostMessageCore(req: Request): Promise<MessageCoreResponse> {
   const session = await auth()

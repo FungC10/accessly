@@ -17,24 +17,25 @@ export default async function DashboardPage() {
   redirect('/')
 
   // Dashboard is accessible to both USER and ADMIN roles
+  // Unreachable code (redirect above), but kept for future use
   const { Role } = await import('@prisma/client')
-  const isAdmin = session.user.role === Role.ADMIN
+  const isAdmin = session!.user!.role === Role.ADMIN
 
   // Fetch user stats (messages, rooms)
   const { prisma } = await import('@/lib/prisma')
   const messageCount = await prisma.message.count({
-    where: { userId: session.user.id },
+    where: { userId: session!.user!.id },
   })
   // Count distinct rooms the user is a member of
   const roomMemberships = await prisma.roomMember.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session!.user!.id },
     select: { roomId: true },
     distinct: ['roomId'],
   })
   const roomCount = roomMemberships.length
 
   // Admin-only stats
-  let adminStats = null
+  let adminStats: { totalUsers: number; totalMessages: number; totalRooms: number } | null = null
   if (isAdmin) {
     const totalUsers = await prisma.user.count()
     const totalMessages = await prisma.message.count()
@@ -49,7 +50,7 @@ export default async function DashboardPage() {
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
             <p className="text-slate-400 mt-1">
-              Welcome back, {session.user.name || session.user.email}
+              Welcome back, {session!.user!.name || session!.user!.email}
             </p>
           </div>
           {isAdmin && (
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
           <div className="bg-white/10 backdrop-blur border border-slate-700 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-2">Role</h2>
             <div className="flex items-center gap-2">
-              <p className="text-slate-300">{session.user.role}</p>
+              <p className="text-slate-300">{session!.user!.role}</p>
               {isAdmin && (
                 <span className="px-2 py-1 text-xs font-semibold rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                   ADMIN
@@ -94,15 +95,15 @@ export default async function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-purple-500/10 backdrop-blur border border-purple-500/30 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-2 text-purple-300">Total Users</h3>
-                <p className="text-3xl font-bold text-purple-400">{adminStats.totalUsers}</p>
+                <p className="text-3xl font-bold text-purple-400">{adminStats!.totalUsers}</p>
               </div>
               <div className="bg-purple-500/10 backdrop-blur border border-purple-500/30 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-2 text-purple-300">Total Messages</h3>
-                <p className="text-3xl font-bold text-purple-400">{adminStats.totalMessages}</p>
+                <p className="text-3xl font-bold text-purple-400">{adminStats!.totalMessages}</p>
               </div>
               <div className="bg-purple-500/10 backdrop-blur border border-purple-500/30 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-2 text-purple-300">Total Rooms</h3>
-                <p className="text-3xl font-bold text-purple-400">{adminStats.totalRooms}</p>
+                <p className="text-3xl font-bold text-purple-400">{adminStats!.totalRooms}</p>
               </div>
             </div>
           </div>

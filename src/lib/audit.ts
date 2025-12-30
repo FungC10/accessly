@@ -5,6 +5,7 @@ export type AuditAction =
   | 'user.unban'
   | 'room.delete'
   | 'member.remove'
+  | 'member.role.update'
   | 'ownership.transfer'
   | 'room.edit'
   | 'message.delete'

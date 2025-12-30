@@ -60,7 +60,7 @@ export async function POST(
     }
 
     // If assigning (not unassigning), verify assignee exists
-    let assignee: { id: string; name: string | null; email: string } | null = null
+    let assignee: { id: string; name: string | null; email: string | null } | null = null
     if (assignToUserId) {
       assignee = await prisma.user.findUnique({
         where: { id: assignToUserId },

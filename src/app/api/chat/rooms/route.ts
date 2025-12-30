@@ -266,11 +266,11 @@ export async function GET(request: Request) {
           ? {}
           : {
               OR: [
-                { department: dbUser.department }, // User's department
+                { department: dbUser.department as any }, // User's department
                 { department: null }, // PUBLIC_GLOBAL
-              ],
+              ] as any,
             }),
-      },
+      } as any,
       select: {
         id: true,
         name: true,
@@ -320,7 +320,7 @@ export async function GET(request: Request) {
       ...rooms,
       ...additionalRooms.map((r) => ({
         ...r,
-        role: null,
+        role: null as any,
         lastMessage: r.messages[0] || null,
         otherUser: null,
       })),

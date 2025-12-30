@@ -70,7 +70,7 @@ export async function POST(
     const userId = dbUser.id
 
     // Use transaction for safe read-modify-write pattern
-    const updated = await prisma.$transaction(async (tx: typeof prisma) => {
+    const updated = await prisma.$transaction(async (tx) => {
       // 1) Read current message and reactions
       const message = await tx.message.findUnique({
         where: { id: messageId },
@@ -138,7 +138,7 @@ export async function POST(
 
       return tx.message.update({
         where: { id: messageId },
-        data: { reactions: reactionsValue },
+        data: { reactions: reactionsValue ?? undefined },
         select: { 
           id: true,
           roomId: true,

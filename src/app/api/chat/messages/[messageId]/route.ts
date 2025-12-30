@@ -236,7 +236,7 @@ export async function DELETE(
       io.to(message.roomId).emit('message:delete', {
         id: deletedMessage.id,
         roomId: deletedMessage.roomId,
-        deletedAt: deletedMessage.deletedAt.toISOString(),
+        deletedAt: deletedMessage.deletedAt?.toISOString() ?? null,
       })
     }
 

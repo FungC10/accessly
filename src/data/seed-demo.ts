@@ -849,7 +849,7 @@ async function main() {
   }
   
   // Verify each room has members
-  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, gamingRoom, billingRoom, productRoom, generalRoom2, ...ticketRooms, customerTicket1, customerTicket2]
+  const allRooms = [generalRoom, techRoom, randomRoom, privateRoom, gamingRoom, billingRoom, productRoom, generalRoom2, ...ticketRooms]
   for (const room of allRooms) {
     const roomMembers = await prisma.roomMember.count({
       where: { roomId: room.id },
