@@ -51,8 +51,7 @@ describe('OPS: GET /api/dev/metrics', () => {
   })
 
   it('should allow access in development mode without auth', async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'development'
+    vi.stubEnv('NODE_ENV', 'development')
 
     const response = await GETMetrics()
     const data = await response.json()
@@ -66,14 +65,13 @@ describe('OPS: GET /api/dev/metrics', () => {
     expect(data.data.socketDisconnects).toBeGreaterThanOrEqual(0)
     expect(data.data.timestamp).toBeDefined()
 
-    process.env.NODE_ENV = originalEnv
+    vi.unstubAllEnvs()
   })
 
   it('should require admin auth in production mode', async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+    vi.stubEnv('NODE_ENV', 'production')
 
-    vi.mocked(auth).mockResolvedValue(null)
+    vi.mocked(auth).mockResolvedValue(null as any)
 
     const response = await GETMetrics()
     const data = await response.json()
@@ -82,12 +80,11 @@ describe('OPS: GET /api/dev/metrics', () => {
     expect(data.ok).toBe(false)
     expect(data.code).toBe('UNAUTHORIZED')
 
-    process.env.NODE_ENV = originalEnv
+    vi.unstubAllEnvs()
   })
 
   it('should allow admin user in production mode', async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+    vi.stubEnv('NODE_ENV', 'production')
 
     const mockSession = {
       user: {
@@ -112,12 +109,11 @@ describe('OPS: GET /api/dev/metrics', () => {
     expect(data.ok).toBe(true)
     expect(data.data).toBeDefined()
 
-    process.env.NODE_ENV = originalEnv
+    vi.unstubAllEnvs()
   })
 
   it('should reject non-admin user in production mode', async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+    vi.stubEnv('NODE_ENV', 'production')
 
     const mockSession = {
       user: {
@@ -142,12 +138,11 @@ describe('OPS: GET /api/dev/metrics', () => {
     expect(data.ok).toBe(false)
     expect(data.code).toBe('FORBIDDEN')
 
-    process.env.NODE_ENV = originalEnv
+    vi.unstubAllEnvs()
   })
 
   it('should return correct metrics structure', async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'development'
+    vi.stubEnv('NODE_ENV', 'development')
 
     // Increment some metrics
     metricsStore.increment5xxError('route1')
@@ -167,7 +162,7 @@ describe('OPS: GET /api/dev/metrics', () => {
       note: expect.any(String),
     })
 
-    process.env.NODE_ENV = originalEnv
+    vi.unstubAllEnvs()
   })
 })
 
