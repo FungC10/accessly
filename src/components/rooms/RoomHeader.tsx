@@ -1034,7 +1034,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                   </div>
                 )}
                 <p className="mt-2 text-xs text-slate-400">
-                  Adds user as a participant (MEMBER role). Use "Assign" to set as ticket owner.
+                  Adds user as a participant (MEMBER role). Use &quot;Assign&quot; to set as ticket owner.
                 </p>
               </div>
               <div className="flex gap-3">
