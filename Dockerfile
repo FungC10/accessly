@@ -17,6 +17,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # CRITICAL: Force Prisma to generate glibc binary (not MUSL)
+# Issue: Render deployment shows "success" but Safari shows blank page and Chrome shows 502
+# Root cause: Prisma was generating MUSL binaries (from Alpine) but Render uses Debian/glibc
+# Solution: Explicitly set Prisma to generate glibc binaries for Debian/Render compatibility
 ENV PRISMA_CLI_QUERY_ENGINE_TYPE="libquery_engine-linux-glibc"
 ENV PRISMAengines="debian-openssl-3.0.x"
 
