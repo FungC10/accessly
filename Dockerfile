@@ -34,8 +34,9 @@ FROM node:20-bullseye-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+# CRITICAL: Next.js standalone server.js reads HOSTNAME (not HOST) and PORT
 ENV PORT=3000
-ENV HOST=0.0.0.0
+ENV HOSTNAME=0.0.0.0
 
 RUN addgroup --system nodejs && adduser --system nextjs
 
