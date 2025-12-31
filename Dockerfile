@@ -73,6 +73,8 @@ COPY --from=builder /app/postcss.config.js ./
 COPY --from=builder /app/tsconfig.json ./
 # Copy Prisma schema folder (needed for runtime)
 COPY --from=builder /app/src/prisma ./src/prisma
+# Copy standalone server.js to root
+COPY --from=builder /app/.next/standalone/server.js ./server.js
 
 # Set permissions
 RUN chown -R nextjs:nodejs /app
@@ -81,4 +83,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["node", "server.js"]
