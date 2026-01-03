@@ -24,6 +24,16 @@ providers.push(
       try {
         console.log('🔍 Auth attempt started')
         
+        // CRITICAL: Log DATABASE_URL to verify which database we're using
+        const dbUrl = process.env.DATABASE_URL
+        if (dbUrl) {
+          // Mask password for security, but show hostname
+          const maskedUrl = dbUrl.replace(/:[^:@]+@/, ':****@')
+          console.log('🗄️  DATABASE_URL:', maskedUrl)
+        } else {
+          console.error('❌ DATABASE_URL not set!')
+        }
+        
         if (!credentials?.email || !credentials?.password) {
           console.log('❌ Missing credentials', { email: !!credentials?.email, password: !!credentials?.password })
           return null
@@ -37,6 +47,10 @@ providers.push(
         try {
           await prisma.$connect()
           console.log('✅ Database connected')
+          
+          // Check total user count in this database
+          const userCount = await prisma.user.count()
+          console.log('👥 Total users in database:', userCount)
         } catch (dbError) {
           console.error('❌ Database connection failed:', dbError)
           throw dbError
