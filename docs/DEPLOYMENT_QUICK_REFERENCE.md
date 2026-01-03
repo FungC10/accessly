@@ -43,11 +43,25 @@ NODE_ENV=production
 ### Step 3: Deploy & Migrate
 
 1. Render auto-deploys on git push
-2. After first deploy, run migrations:
-   - Go to Web Service → Shell tab
+2. **CRITICAL**: After first deploy, run migrations:
+   - Go to Web Service → **Shell** tab
    - Run: `pnpm prisma:deploy`
-3. (Optional) Seed demo data:
-   - Run: `pnpm db:seed-demo`
+   - This creates all database tables
+3. **REQUIRED**: Seed database to create admin users:
+   - **Option A** (basic): `pnpm db:seed` → Creates `admin@accessly.com` / `admin123`
+   - **Option B** (demo): `pnpm db:seed-demo` → Creates `admin@solace.com` / `demo123` and more
+4. **Without seeding, you cannot login** - no users exist in the database!
+
+### Important Notes
+
+**⚠️ Dockerfile Configuration:**
+- Uses `node:20-bullseye-slim` (Debian/glibc, not Alpine/MUSL)
+- Sets `ENV HOSTNAME=0.0.0.0` (not `HOST`) for port binding
+- Includes Prisma glibc binary generation
+
+**⚠️ Build/Start Commands:**
+- **Build Command**: Leave empty (Dockerfile handles it)
+- **Start Command**: Leave empty (Dockerfile CMD handles it)
 
 ## Environment Variables Checklist
 
