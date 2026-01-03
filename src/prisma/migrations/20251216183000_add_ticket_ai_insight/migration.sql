@@ -1,0 +1,1 @@
+-- Empty migration (schema already up to date)
