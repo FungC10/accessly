@@ -126,6 +126,97 @@ After deployment, check Render logs for:
 3. Use Render Shell tab to run these commands
 **Status**: ⚠️ REQUIRES MANUAL STEP - See "Post-Deployment Database Setup" below
 
+### Issue: "Invalid email or password" - Email case sensitivity
+**Symptoms**:
+- Login fails with "Invalid email or password"
+- Logs show: `❌ User not found: Admin@solace.com` (capital A)
+- Database has `admin@solace.com` (lowercase)
+
+**Root Cause**:
+- Prisma email lookups are case-sensitive
+- User typing `Admin@solace.com` doesn't match `admin@solace.com` in database
+
+**Fix Applied**:
+- Updated `src/lib/auth.ts` to normalize email: `email.toLowerCase().trim()`
+- Now accepts any case variation: `Admin@solace.com`, `ADMIN@SOLACE.COM`, etc.
+**Status**: ✅ FIXED - Email normalization added to authorize() function
+
+### Issue: "Authentication Error - Configuration"
+**Symptoms**:
+- NextAuth shows configuration error in production
+- Works locally but fails on Render
+
+**Root Cause**:
+- NextAuth v5 requires `AUTH_TRUST_HOST=true` in production
+- Missing or incorrect `NEXTAUTH_URL` environment variable
+
+**Fix Applied**:
+- Set `AUTH_TRUST_HOST=true` in Render environment variables
+- Verify `NEXTAUTH_URL` matches exact Render app URL (HTTPS, no trailing slash)
+- Verify `AUTH_SECRET` is set and valid
+**Status**: ✅ FIXED - Added `AUTH_TRUST_HOST=true` to environment variables
+
+### Issue: Cannot seed database in Render Shell
+**Symptoms**:
+- Running `npx prisma db seed` shows "No seed command configured"
+- Cannot run `pnpm db:seed-demo` in Render Shell
+
+**Root Cause**:
+- Dockerfile only copies standalone runtime files
+- Source files (`src/data/`, `scripts/`) not included in Docker image
+- Dev dependencies (`tsx`, `prisma` CLI) not installed
+
+**Fix Applied**:
+1. Added Prisma seed configuration to `package.json`:
+   ```json
+   "prisma": {
+     "seed": "tsx src/data/seed-demo.ts"
+   }
+   ```
+2. Updated Dockerfile to copy source files:
+   - `src/data/` (seed scripts)
+   - `src/prisma/` (schema + migrations)
+   - `scripts/` (debugging tools)
+   - `package.json` + `pnpm-lock.yaml`
+3. Install dev dependencies in runner stage for seeding/debugging
+**Status**: ✅ FIXED - Dockerfile now includes seed files and dev dependencies
+
+## Recent Deployment Issues Fixed (January 2025)
+
+### Issue #4: Authentication Debugging & Database Connection Logging
+**Symptoms**:
+- Login failures without clear error messages
+- Unclear which database production app is using
+- Generic "CredentialsSignin" errors in logs
+
+**Root Cause**:
+- Auth code lacked detailed logging
+- No visibility into which DATABASE_URL production uses
+- Couldn't verify if seed ran against correct database
+
+**Fix Applied**:
+1. Added comprehensive logging to `src/lib/auth.ts`:
+   - Logs DATABASE_URL (masked for security) to verify which database is used
+   - Logs normalized email being queried
+   - Logs database connection status
+   - Logs total user count in database (helps identify empty database)
+   - Logs detailed error messages with stack traces
+2. This helps identify:
+   - Wrong database connection (different DATABASE_URL than expected)
+   - Empty database (0 users = seed didn't run or wrong database)
+   - Email normalization issues
+   - Password mismatch issues
+**Status**: ✅ FIXED - Detailed auth logging added for production debugging
+   - Logs database connection status
+   - Logs total user count in database
+   - Logs detailed error messages with stack traces
+2. This helps identify:
+   - Wrong database connection
+   - Empty database (0 users)
+   - Email normalization issues
+   - Password mismatch issues
+**Status**: ✅ FIXED - Detailed auth logging added
+
 ## Bugs Fixed in This Deployment
 
 ### Bug #1: Prisma MUSL Binary Issue
