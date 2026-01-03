@@ -22,13 +22,25 @@ providers.push(
     },
     async authorize(credentials) {
       try {
+        console.log('🔍 Auth attempt started')
+        
         if (!credentials?.email || !credentials?.password) {
-          console.log('❌ Missing credentials')
+          console.log('❌ Missing credentials', { email: !!credentials?.email, password: !!credentials?.password })
           return null
         }
 
         // Normalize email to lowercase (emails are case-insensitive)
         const normalizedEmail = (credentials.email as string).toLowerCase().trim()
+        console.log('📧 Normalized email:', normalizedEmail)
+
+        // Test database connection first
+        try {
+          await prisma.$connect()
+          console.log('✅ Database connected')
+        } catch (dbError) {
+          console.error('❌ Database connection failed:', dbError)
+          throw dbError
+        }
 
         const user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
@@ -38,6 +50,8 @@ providers.push(
           console.log('❌ User not found:', normalizedEmail)
           return null
         }
+
+        console.log('✅ User found:', user.email, 'Role:', user.role)
 
         if (!user.password) {
           console.log('❌ User has no password set')
@@ -60,6 +74,7 @@ providers.push(
         }
       } catch (error) {
         console.error('❌ Auth error:', error)
+        console.error('❌ Auth error stack:', error instanceof Error ? error.stack : 'No stack trace')
         return null
       }
     },
