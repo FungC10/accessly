@@ -27,12 +27,15 @@ providers.push(
           return null
         }
 
+        // Normalize email to lowercase (emails are case-insensitive)
+        const normalizedEmail = (credentials.email as string).toLowerCase().trim()
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email: normalizedEmail },
         })
 
         if (!user) {
-          console.log('❌ User not found:', credentials.email)
+          console.log('❌ User not found:', normalizedEmail)
           return null
         }
 
@@ -43,7 +46,7 @@ providers.push(
 
         const isValid = await bcrypt.compare(credentials.password as string, user.password)
         if (!isValid) {
-          console.log('❌ Invalid password for user:', credentials.email)
+          console.log('❌ Invalid password for user:', normalizedEmail)
           return null
         }
 
