@@ -12,7 +12,10 @@ const providers: Array<
   ReturnType<typeof GitHub> | ReturnType<typeof Email> | ReturnType<typeof Credentials>
 > = []
 
-// Add Credentials provider (for email/password login)
+/**
+ * Credentials Provider
+ * 用於 email / password 登入
+ */
 providers.push(
   Credentials({
     name: 'Credentials',
@@ -20,10 +23,15 @@ providers.push(
       email: { label: 'Email', type: 'email' },
       password: { label: 'Password', type: 'password' },
     },
+
     async authorize(credentials) {
       try {
         console.log('🔍 Auth attempt started')
 
+        /**
+         * ✅ 最重要的 Debug：檢查實際收到的 password
+         * （這一步就是整個案子的關鍵）
+         */
         const rawPassword = credentials?.password
         console.log('🔑 Raw password received:', JSON.stringify(rawPassword))
 
@@ -39,37 +47,59 @@ providers.push(
           return null
         }
 
+        /**
+         * Normalize email
+         */
         const normalizedEmail = credentials.email.toLowerCase().trim()
         console.log('📧 Normalized email:', normalizedEmail)
 
+        /**
+         * 查 user
+         */
         const user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
         })
 
         if (!user || !user.password) {
-          console.log('❌ User not found or no password')
+          console.log('❌ User not found or no password:', normalizedEmail)
           return null
         }
 
+        console.log('✅ User found:', user.email, 'Role:', user.role)
+        console.log('🔐 Stored hash prefix:', user.password.substring(0, 7))
+        console.log('🔐 Stored hash length:', user.password.length)
+
+        /**
+         * bcrypt compare
+         */
         const isValid = await bcrypt.compare(rawPassword, user.password)
         console.log('🔐 bcrypt.compare result:', isValid)
 
-        if (!isValid) return null
+        if (!isValid) {
+          console.log('❌ Invalid password for:', normalizedEmail)
+          return null
+        }
+
+        console.log('✅ Login successful for:', user.email)
 
         return {
           id: user.id,
           email: user.email,
+          name: user.name,
+          image: user.image,
           role: user.role,
         }
-      } catch (e) {
-        console.error('❌ Auth error', e)
+      } catch (error) {
+        console.error('❌ Auth error:', error)
         return null
       }
     },
   })
 )
 
-// Add GitHub provider if env vars are present
+/**
+ * OAuth Providers（可選）
+ */
 if (env.GITHUB_ID && env.GITHUB_SECRET) {
   providers.push(
     GitHub({
@@ -79,7 +109,6 @@ if (env.GITHUB_ID && env.GITHUB_SECRET) {
   )
 }
 
-// Add Email provider if env vars are present
 if (env.EMAIL_SERVER && env.EMAIL_FROM) {
   providers.push(
     Email({
@@ -89,56 +118,39 @@ if (env.EMAIL_SERVER && env.EMAIL_FROM) {
   )
 }
 
-// Ensure at least one provider is configured
-if (providers.length === 0) {
-  console.warn(
-    '⚠️  No authentication providers configured. Please set GITHUB_ID/GITHUB_SECRET or EMAIL_SERVER/EMAIL_FROM'
-  )
-}
-
-// Check if we have OAuth providers (need adapter)
 const hasOAuthProviders = providers.some(p => p.id !== 'credentials')
 
+/**
+ * NextAuth Config
+ */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  // Only use adapter for OAuth providers (GitHub, Email)
-  // Credentials provider uses JWT strategy and doesn't need adapter
   adapter: hasOAuthProviders ? (PrismaAdapter(prisma) as any) : undefined,
+
   session: {
-    strategy: 'jwt', // Use JWT for credentials provider (required)
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60,
   },
+
   providers,
-  cookies: {
-    sessionToken: {
-      name: `${env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: env.NODE_ENV === 'production',
-      },
-    },
-  },
+
   callbacks: {
-    async session({ session, token }) {
-      if (session.user && token) {
-        // Use token.sub (NextAuth default) or token.id (fallback)
-        session.user.id = (token.sub as string) || (token.id as string) || ''
-        session.user.role = (token.role as Role) || Role.USER
-      }
-      return session
-    },
     async jwt({ token, user }) {
       if (user) {
-        // token.sub is set automatically by NextAuth to user.id
-        // But we also set token.id for explicit access
-        token.id = user.id
-        token.sub = user.id // Ensure sub is set (NextAuth default)
-        token.role = (user as any).role || Role.USER
+        token.sub = user.id
+        token.role = (user as any).role ?? Role.USER
       }
       return token
     },
+
+    async session({ session, token }) {
+      if (session.user && token) {
+        session.user.id = token.sub as string
+        session.user.role = token.role as Role
+      }
+      return session
+    },
   },
+
   pages: {
     signIn: '/sign-in',
     error: '/auth/error',
