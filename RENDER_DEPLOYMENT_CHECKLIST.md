@@ -236,6 +236,58 @@ After deployment, check Render logs for:
    - If password hash format is correct
 **Status**: ✅ FIXED - Debug logging added, both use `bcryptjs`
 
+### Issue #6: Comprehensive Bcrypt Investigation & Root Cause Analysis
+**Symptoms**:
+- `bcrypt.compare()` returns `false` in production
+- Login fails even though seed ran successfully
+- User and password exist in database
+- Need concrete evidence to identify root cause
+
+**Investigation Steps Completed**:
+
+1. **Bcrypt Implementation Consistency Check**:
+   - Verified all 6 files use `bcryptjs` (no native `bcrypt`)
+   - Files checked: `auth.ts`, `seed-demo.ts`, `seed.ts`, `signup/route.ts`, `verify-password.js`, `test-bcrypt-direct.js`
+   - Package.json: `"bcryptjs": "^3.0.3"`
+   - ✅ **Result**: NO mixed usage found
+
+2. **Runtime Module Path Verification**:
+   - Added `require.resolve('bcryptjs')` logging to `auth.ts` and `seed-demo.ts`
+   - Logs actual module path and function source at runtime
+   - ✅ **Purpose**: Verify same bcrypt module is used in seed and auth
+
+3. **Direct Hash Compatibility Test**:
+   - Created `scripts/test-bcrypt-direct.js` for isolated testing
+   - Tests `bcrypt.compare('demo123', hash)` directly (bypasses NextAuth)
+   - Creates new hash and compares to verify bcrypt functionality
+   - ✅ **Purpose**: Get concrete TRUE/FALSE result without auth layer
+
+4. **Double-Hashing / Password Mutation Check**:
+   - Verified Prisma middleware only tracks slow queries (doesn't modify data)
+   - Confirmed no `beforeCreate`/`beforeUpdate` hooks exist
+   - Verified seed script hashes password once and stores directly
+   - ✅ **Result**: NO password mutation found
+
+5. **Prisma Client Version Check**:
+   - Added `prisma._clientVersion` logging to `auth.ts` and `seed-demo.ts`
+   - ✅ **Purpose**: Verify same Prisma client version in seed and production
+
+**Fix Applied**:
+1. Added comprehensive logging to identify:
+   - Module paths (to verify same bcrypt module)
+   - Prisma versions (to verify same client)
+   - Direct comparison result (TRUE/FALSE)
+2. Created test script for isolated verification
+3. All changes committed and ready for production testing
+
+**Next Steps**:
+1. Deploy changes to production
+2. Run `pnpm tsx scripts/test-bcrypt-direct.js` in Render Shell
+3. Check production logs for module paths, versions, and comparison results
+4. Use concrete evidence to identify root cause
+
+**Status**: 🔍 INVESTIGATION COMPLETE - Awaiting production test results
+
 ## Bugs Fixed in This Deployment
 
 ### Bug #1: Prisma MUSL Binary Issue
