@@ -252,15 +252,19 @@ After deployment, check Render logs for:
    - ✅ **Result**: NO mixed usage found
 
 2. **Runtime Module Path Verification**:
-   - Added `require.resolve('bcryptjs')` logging to `auth.ts` and `seed-demo.ts`
-   - Logs actual module path and function source at runtime
-   - ✅ **Purpose**: Verify same bcrypt module is used in seed and auth
+   - Initially attempted `require.resolve('bcryptjs')` logging
+   - ⚠️ **Issue**: `require` not available in ESM environment (Next.js + tsx)
+   - ✅ **Fix**: Removed `require.resolve()` calls, simplified logging
+   - Now logs hash prefix and length instead (ESM-compatible)
 
 3. **Direct Hash Compatibility Test**:
    - Created `scripts/test-bcrypt-direct.js` for isolated testing
+   - ⚠️ **Issue**: Initial version used `require.resolve()` (not available in ESM)
+   - ✅ **Fix**: Converted to pure ESM (removed all `require` usage)
    - Tests `bcrypt.compare('demo123', hash)` directly (bypasses NextAuth)
    - Creates new hash and compares to verify bcrypt functionality
    - ✅ **Purpose**: Get concrete TRUE/FALSE result without auth layer
+   - ✅ **Status**: Now runs correctly with `pnpm tsx` in ESM environment
 
 4. **Double-Hashing / Password Mutation Check**:
    - Verified Prisma middleware only tracks slow queries (doesn't modify data)
@@ -274,11 +278,15 @@ After deployment, check Render logs for:
 
 **Fix Applied**:
 1. Added comprehensive logging to identify:
-   - Module paths (to verify same bcrypt module)
+   - Hash prefix and length (ESM-compatible)
    - Prisma versions (to verify same client)
    - Direct comparison result (TRUE/FALSE)
-2. Created test script for isolated verification
-3. All changes committed and ready for production testing
+2. Created pure ESM test script (`scripts/test-bcrypt-direct.js`)
+   - Removed all `require` usage
+   - Works with `pnpm tsx` in production
+   - Logs clear TRUE/FALSE result
+3. Removed `require.resolve()` from auth.ts and seed-demo.ts (ESM compatibility)
+4. All changes committed and ready for production testing
 
 **Next Steps**:
 1. Deploy changes to production

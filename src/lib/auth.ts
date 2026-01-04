@@ -77,14 +77,8 @@ providers.push(
 
         // DEBUG: Log bcrypt library and compare result
         console.log('🔐 Using bcrypt library: bcryptjs')
-        try {
-          const bcryptModulePath = require.resolve('bcryptjs')
-          console.log('🔐 bcrypt module path:', bcryptModulePath)
-          console.log('🔐 bcrypt compare fn source:', bcrypt.compare.toString().slice(0, 200))
-        } catch (e) {
-          console.error('🔐 Failed to resolve bcryptjs:', e)
-        }
         console.log('🔐 Password hash prefix:', user.password.substring(0, 7))
+        console.log('🔐 Password hash length:', user.password.length)
         console.log('🔐 Input password length:', (credentials.password as string).length)
         
         const isValid = await bcrypt.compare(credentials.password as string, user.password)

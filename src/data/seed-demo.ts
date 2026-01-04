@@ -162,13 +162,6 @@ async function main() {
   console.log('👥 STEP 1: Creating users...')
   
   // Hash password for all users
-  // DEBUG: Log bcrypt module path in seed
-  try {
-    const bcryptModulePath = require.resolve('bcryptjs')
-    console.log('🌱 seed bcrypt module path:', bcryptModulePath)
-  } catch (e) {
-    console.error('🌱 Failed to resolve bcryptjs:', e)
-  }
   const hashedPassword = await bcrypt.hash('demo123', 10)
 
   // Local Department enum to match schema (before migration)
