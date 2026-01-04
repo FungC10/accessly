@@ -39,6 +39,10 @@ providers.push(
           return null
         }
 
+        // DEBUG: Log raw password received
+        console.log('🔑 Raw password received:', JSON.stringify(credentials.password))
+        console.log('🔑 Password length:', credentials.password?.length)
+
         // Normalize email to lowercase (emails are case-insensitive)
         const normalizedEmail = (credentials.email as string).toLowerCase().trim()
         console.log('📧 Normalized email:', normalizedEmail)
