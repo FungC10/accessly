@@ -48,6 +48,9 @@ providers.push(
           await prisma.$connect()
           console.log('✅ Database connected')
           
+          // Log Prisma client version
+          console.log('🧬 Prisma client version:', (prisma as any)._clientVersion || 'unknown')
+          
           // Check total user count in this database
           const userCount = await prisma.user.count()
           console.log('👥 Total users in database:', userCount)
@@ -74,6 +77,13 @@ providers.push(
 
         // DEBUG: Log bcrypt library and compare result
         console.log('🔐 Using bcrypt library: bcryptjs')
+        try {
+          const bcryptModulePath = require.resolve('bcryptjs')
+          console.log('🔐 bcrypt module path:', bcryptModulePath)
+          console.log('🔐 bcrypt compare fn source:', bcrypt.compare.toString().slice(0, 200))
+        } catch (e) {
+          console.error('🔐 Failed to resolve bcryptjs:', e)
+        }
         console.log('🔐 Password hash prefix:', user.password.substring(0, 7))
         console.log('🔐 Input password length:', (credentials.password as string).length)
         
