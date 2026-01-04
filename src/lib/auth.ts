@@ -93,6 +93,10 @@ providers.push(
         console.log('🔐 Password hash length:', user.password.length)
         console.log('🔐 Input password length:', (credentials.password as string).length)
         
+        // DEBUG: Log raw password right before comparison
+        console.log('🔑 Raw password received:', JSON.stringify(credentials.password))
+        console.log('🔑 Password length:', credentials.password?.length)
+        
         const isValid = await bcrypt.compare(credentials.password as string, user.password)
         console.log('🔐 bcrypt.compare() result:', isValid ? '✅ TRUE' : '❌ FALSE')
         
