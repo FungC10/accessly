@@ -259,12 +259,13 @@ After deployment, check Render logs for:
 
 3. **Direct Hash Compatibility Test**:
    - Created `scripts/test-bcrypt-direct.js` for isolated testing
-   - ⚠️ **Issue**: Initial version used `require.resolve()` (not available in ESM)
-   - ✅ **Fix**: Converted to pure ESM (removed all `require` usage)
+   - ⚠️ **Issue 1**: Initial version used `require.resolve()` (not available in ESM)
+   - ⚠️ **Issue 2**: Had TypeScript syntax `(prisma as any)` in `.js` file (caused SyntaxError with tsx)
+   - ✅ **Fix**: Converted to pure JavaScript (removed all `require` usage and TypeScript syntax)
    - Tests `bcrypt.compare('demo123', hash)` directly (bypasses NextAuth)
    - Creates new hash and compares to verify bcrypt functionality
    - ✅ **Purpose**: Get concrete TRUE/FALSE result without auth layer
-   - ✅ **Status**: Now runs correctly with `pnpm tsx` in ESM environment
+   - ✅ **Status**: Runs with `npx tsx` in Render Shell (pure JavaScript, no TypeScript syntax)
 
 4. **Double-Hashing / Password Mutation Check**:
    - Verified Prisma middleware only tracks slow queries (doesn't modify data)
@@ -283,18 +284,57 @@ After deployment, check Render logs for:
    - Direct comparison result (TRUE/FALSE)
 2. Created pure ESM test script (`scripts/test-bcrypt-direct.js`)
    - Removed all `require` usage
-   - Works with `pnpm tsx` in production
+   - Works with `npx tsx` in Render Shell (uses `npx` not `pnpm`)
    - Logs clear TRUE/FALSE result
 3. Removed `require.resolve()` from auth.ts and seed-demo.ts (ESM compatibility)
 4. All changes committed and ready for production testing
 
-**Next Steps**:
-1. Deploy changes to production
-2. Run `pnpm tsx scripts/test-bcrypt-direct.js` in Render Shell
-3. Check production logs for module paths, versions, and comparison results
-4. Use concrete evidence to identify root cause
+**Next Steps for Production Debugging**:
 
-**Status**: 🔍 INVESTIGATION COMPLETE - Awaiting production test results
+**Option 1: Direct Test Script (Recommended)**
+```bash
+npx tsx scripts/test-bcrypt-direct.js
+```
+- Pure ESM script that tests `bcrypt.compare()` directly
+- Logs clear TRUE/FALSE result
+- Includes sanity check (new hash + compare)
+- **Note**: Render Shell uses `npx` (not `pnpm`), so use `npx tsx`
+
+**Option 2: Manual Database Inspection (Alternative)**
+```bash
+# Check if user exists and view password hash
+node -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+(async () => {
+  const u = await prisma.user.findUnique({ where: { email: 'admin@solace.com' }});
+  console.log('User:', u?.email);
+  console.log('Password hash:', u?.password);
+  console.log('Hash prefix:', u?.password?.substring(0, 20));
+  await prisma.\$disconnect();
+})();
+"
+```
+- Uses CommonJS `require()` (works in Node.js without tsx)
+- Quick way to inspect database directly
+- Useful when ESM tools not available
+
+**Option 3: Seed Database (If needed)**
+```bash
+npx prisma db seed --schema=src/prisma/schema.prisma
+```
+- Seeds database with demo users
+- Creates `admin@solace.com` with password `demo123`
+
+**Why This Helps**:
+1. **Isolates the problem**: Tests bcrypt comparison without NextAuth layer
+2. **Direct database access**: Verifies hash exists and format is correct
+3. **ESM compatibility**: Test script works in Next.js/tsx environment
+4. **Concrete evidence**: Returns TRUE/FALSE, not assumptions
+5. **Sanity check**: If new hash works but DB hash doesn't, identifies hash corruption
+6. **Manual inspection**: Alternative method when tsx not available, uses CommonJS require
+
+**Status**: 🔍 INVESTIGATION COMPLETE - Ready for production testing
 
 ## Bugs Fixed in This Deployment
 

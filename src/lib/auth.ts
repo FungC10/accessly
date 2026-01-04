@@ -75,14 +75,32 @@ providers.push(
           return null
         }
 
-        // DEBUG: Log bcrypt library and compare result
+        // DEBUG: Log bcrypt library and module path
         console.log('🔐 Using bcrypt library: bcryptjs')
+        try {
+          // ESM-compatible module path logging
+          const bcryptModule = await import('bcryptjs')
+          console.log('🔐 bcrypt module loaded:', typeof bcryptModule.default === 'function' ? 'default export' : 'named export')
+          console.log('🔐 bcrypt.compare type:', typeof bcrypt.compare)
+        } catch (e) {
+          console.error('🔐 Failed to inspect bcrypt module:', e)
+        }
         console.log('🔐 Password hash prefix:', user.password.substring(0, 7))
         console.log('🔐 Password hash length:', user.password.length)
         console.log('🔐 Input password length:', (credentials.password as string).length)
         
         const isValid = await bcrypt.compare(credentials.password as string, user.password)
         console.log('🔐 bcrypt.compare() result:', isValid ? '✅ TRUE' : '❌ FALSE')
+        
+        if (!isValid) {
+          // Additional debug: try creating new hash and comparing
+          console.log('🔐 DEBUG: Creating new hash for comparison test')
+          const testHash = await bcrypt.hash(credentials.password as string, 10)
+          const testCompare = await bcrypt.compare(credentials.password as string, testHash)
+          console.log('🔐 New hash compare result:', testCompare ? '✅ TRUE' : '❌ FALSE')
+          console.log('🔐 DB hash:', user.password.substring(0, 30) + '...')
+          console.log('🔐 New hash:', testHash.substring(0, 30) + '...')
+        }
         
         if (!isValid) {
           console.log('❌ Invalid password for user:', normalizedEmail)

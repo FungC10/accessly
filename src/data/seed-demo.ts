@@ -162,7 +162,17 @@ async function main() {
   console.log('👥 STEP 1: Creating users...')
   
   // Hash password for all users
+  // DEBUG: Log bcrypt module info in seed
+  console.log('🌱 Seed: Using bcrypt library: bcryptjs')
+  try {
+    const bcryptModule = await import('bcryptjs')
+    console.log('🌱 Seed: bcrypt module loaded:', typeof bcryptModule.default === 'function' ? 'default export' : 'named export')
+    console.log('🌱 Seed: bcrypt.hash type:', typeof bcrypt.hash)
+  } catch (e) {
+    console.error('🌱 Seed: Failed to inspect bcrypt module:', e)
+  }
   const hashedPassword = await bcrypt.hash('demo123', 10)
+  console.log('🌱 Seed: Generated hash prefix:', hashedPassword.substring(0, 20))
 
   // Local Department enum to match schema (before migration)
   const Department = {

@@ -6,7 +6,7 @@ const prisma = new PrismaClient()
 ;(async () => {
   try {
     console.log('🧪 Direct bcrypt test (ESM, no NextAuth)')
-    console.log('🧬 Prisma client version:', (prisma as any)._clientVersion ?? 'unknown')
+    console.log('🧬 Prisma client version:', prisma._clientVersion ?? 'unknown')
 
     const user = await prisma.user.findUnique({
       where: { email: 'admin@solace.com' },
