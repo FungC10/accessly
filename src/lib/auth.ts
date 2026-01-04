@@ -72,7 +72,14 @@ providers.push(
           return null
         }
 
+        // DEBUG: Log bcrypt library and compare result
+        console.log('🔐 Using bcrypt library: bcryptjs')
+        console.log('🔐 Password hash prefix:', user.password.substring(0, 7))
+        console.log('🔐 Input password length:', (credentials.password as string).length)
+        
         const isValid = await bcrypt.compare(credentials.password as string, user.password)
+        console.log('🔐 bcrypt.compare() result:', isValid ? '✅ TRUE' : '❌ FALSE')
+        
         if (!isValid) {
           console.log('❌ Invalid password for user:', normalizedEmail)
           return null
