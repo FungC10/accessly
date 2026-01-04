@@ -12,10 +12,7 @@ const providers: Array<
   ReturnType<typeof GitHub> | ReturnType<typeof Email> | ReturnType<typeof Credentials>
 > = []
 
-/**
- * Credentials Provider
- * 用於 email / password 登入
- */
+// Credentials provider for email/password authentication
 providers.push(
   Credentials({
     name: 'Credentials',
@@ -23,64 +20,33 @@ providers.push(
       email: { label: 'Email', type: 'email' },
       password: { label: 'Password', type: 'password' },
     },
-
     async authorize(credentials) {
       try {
-        console.log('🔍 Auth attempt started')
-
-        /**
-         * ✅ 最重要的 Debug：檢查實際收到的 password
-         * （這一步就是整個案子的關鍵）
-         */
-        const rawPassword = credentials?.password
-        console.log('🔑 Raw password received:', JSON.stringify(rawPassword))
-
-        if (typeof rawPassword === 'string') {
-          console.log('🔑 Password length:', rawPassword.length)
-        } else {
-          console.log('❌ Password is not a string:', typeof rawPassword)
+        if (!credentials?.email || !credentials?.password) {
           return null
         }
 
-        if (!credentials?.email) {
-          console.log('❌ Missing email')
-          return null
-        }
-
-        /**
-         * Normalize email
-         */
+        // Normalize email to lowercase (case-insensitive)
         const normalizedEmail = (credentials.email as string).toLowerCase().trim()
-        console.log('📧 Normalized email:', normalizedEmail)
 
-        /**
-         * 查 user
-         */
+        // Find user in database
         const user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
         })
 
         if (!user || !user.password) {
-          console.log('❌ User not found or no password:', normalizedEmail)
           return null
         }
 
-        console.log('✅ User found:', user.email, 'Role:', user.role)
-        console.log('🔐 Stored hash prefix:', user.password.substring(0, 7))
-        console.log('🔐 Stored hash length:', user.password.length)
-
-        /**
-         * bcrypt compare
-         */
-        const isValid = await bcrypt.compare(rawPassword, user.password)
-        console.log('🔐 bcrypt.compare result:', isValid)
+        // Compare password with stored hash
+        const isValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        )
 
         if (!isValid) {
-          console.log('❌ Invalid password for:', normalizedEmail)
           return null
         }
-
-        console.log('✅ Login successful for:', user.email)
 
         return {
           id: user.id,
@@ -90,16 +56,14 @@ providers.push(
           role: user.role,
         }
       } catch (error) {
-        console.error('❌ Auth error:', error)
+        console.error('Auth error:', error)
         return null
       }
     },
   })
 )
 
-/**
- * OAuth Providers（可選）
- */
+// Add GitHub OAuth provider if configured
 if (env.GITHUB_ID && env.GITHUB_SECRET) {
   providers.push(
     GitHub({
@@ -109,6 +73,7 @@ if (env.GITHUB_ID && env.GITHUB_SECRET) {
   )
 }
 
+// Add Email provider if configured
 if (env.EMAIL_SERVER && env.EMAIL_FROM) {
   providers.push(
     Email({
@@ -118,11 +83,10 @@ if (env.EMAIL_SERVER && env.EMAIL_FROM) {
   )
 }
 
+// Check if we have OAuth providers (need adapter)
 const hasOAuthProviders = providers.some(p => p.id !== 'credentials')
 
-/**
- * NextAuth Config
- */
+// Configure NextAuth
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: hasOAuthProviders ? (PrismaAdapter(prisma) as any) : undefined,
 
