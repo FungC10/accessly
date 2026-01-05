@@ -355,28 +355,47 @@ async function main() {
     const now = new Date()
     const ticketAge = now.getTime() - ticketCreatedAt.getTime()
 
-    // Add 2-5 messages per ticket
-    const messageCount = 2 + Math.floor(Math.random() * 4)
+    // Add 3-8 messages per ticket (more messages = better AI suggestions)
+    const messageCount = 3 + Math.floor(Math.random() * 6)
     let lastMessageTime = ticketCreatedAt
 
     for (let i = 0; i < messageCount; i++) {
-      // First message is always from creator
+      // First message is always from creator (customer)
       const isFirstMessage = i === 0
-      // First message from admin creator, rest from assignee
-      const sender = isFirstMessage ? creator : assignee
+      // Alternate between customer (creator) and agent (assignee) for more realistic conversation
+      // First message from customer, then alternate
+      const isCustomerMessage = isFirstMessage || (i % 2 === 0)
+      const sender = isCustomerMessage ? creator : assignee
       
-      // Time between messages: 1-48 hours
-      const hoursSinceLast = 1 + Math.random() * 47
+      // Time between messages: 1-24 hours (more frequent for better demo)
+      const hoursSinceLast = 1 + Math.random() * 23
       const messageTime = new Date(lastMessageTime.getTime() + hoursSinceLast * 60 * 60 * 1000)
       
       // Don't create messages in the future
       if (messageTime > now) break
 
-      // First message is from admin creator with ticket description
-      // Subsequent messages are from assignee (whoever is OWNER)
-      const content = isFirstMessage
-        ? ticketDescriptions[Math.floor(Math.random() * ticketDescriptions.length)]
-        : staffResponses[Math.floor(Math.random() * staffResponses.length)]
+      // First message is from customer with ticket description
+      // Alternate between customer messages and agent responses for realistic conversation
+      let content: string
+      if (isFirstMessage) {
+        content = ticketDescriptions[Math.floor(Math.random() * ticketDescriptions.length)]
+      } else if (isCustomerMessage) {
+        // Customer follow-up messages - more contextual
+        const followUps = [
+          'Any update on this?',
+          'I\'m still experiencing this issue.',
+          'This is really urgent, can someone help?',
+          'I haven\'t heard back yet.',
+          'The problem is still happening.',
+          'Can you provide an ETA?',
+          'I\'ve tried the suggested solution but it didn\'t work.',
+          'Is there any progress on this?',
+        ]
+        content = followUps[Math.floor(Math.random() * followUps.length)]
+      } else {
+        // Agent responses
+        content = staffResponses[Math.floor(Math.random() * staffResponses.length)]
+      }
 
       await prisma.message.create({
         data: {
@@ -626,25 +645,55 @@ async function main() {
   console.log(`   ✅ Total messages: ${totalMessages}`)
   console.log(`   ✅ Messages in tickets (last 30 days): ${recentMessages}`)
 
-  // Staff analytics summary
+  // Staff analytics summary (resolver-centric: all users who are OWNER in ticket rooms)
   console.log('\n👥 Staff Analytics Preview:')
-  for (const admin of admins) {
+  
+  // Get all users who are assigned to at least one ticket (as OWNER)
+  // This includes both admins and regular users who have been assigned tickets
+  const ticketAssignees = await prisma.roomMember.findMany({
+    where: {
+      role: RoomRole.OWNER,
+      room: {
+        type: RoomType.TICKET,
+      },
+    },
+    select: {
+      userId: true,
+    },
+    distinct: ['userId'],
+  })
+
+  const staffUserIds = ticketAssignees.map(ta => ta.userId)
+  const staffUsers = await prisma.user.findMany({
+    where: {
+      id: {
+        in: staffUserIds,
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  })
+
+  for (const staff of staffUsers) {
     const assignedTickets = await prisma.roomMember.count({
       where: {
-        userId: admin.id,
+        userId: staff.id,
         role: RoomRole.OWNER,
         room: { type: RoomType.TICKET },
       },
     })
     const recentTicketMessages = await prisma.message.count({
       where: {
-        userId: admin.id,
+        userId: staff.id,
         room: { type: RoomType.TICKET },
         createdAt: { gte: thirtyDaysAgo },
         deletedAt: null,
       },
     })
-    console.log(`   ${admin.name || admin.email}: ${assignedTickets} tickets, ${recentTicketMessages} messages (30d)`)
+    console.log(`   ${staff.name || staff.email}: ${assignedTickets} tickets, ${recentTicketMessages} messages (30d)`)
   }
 
   console.log('\n✨ Historical data seed completed successfully!')
@@ -652,7 +701,7 @@ async function main() {
   console.log('   - Realistic audit log history (past 90 days)')
   console.log('   - Additional tickets with various statuses')
   console.log('   - Historical messages in ticket rooms')
-  console.log('   - Staff analytics data for all admins')
+  console.log('   - Staff analytics data for all ticket resolvers (OWNER role)')
 }
 
 main()

@@ -210,10 +210,13 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
     return null
   }
 
-  const handleCopySuggestion = (text: string) => {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+
+  const handleCopySuggestion = (text: string, index: number) => {
     navigator.clipboard.writeText(text).then(() => {
-      // Optional: show toast notification
-      alert('Copied to clipboard!')
+      setCopiedIndex(index)
+      // Reset icon after 2 seconds
+      setTimeout(() => setCopiedIndex(null), 2000)
     }).catch((err) => {
       console.error('Failed to copy:', err)
     })
@@ -360,10 +363,24 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
                         {suggestion}
                       </p>
                       <button
-                        onClick={() => handleCopySuggestion(suggestion)}
-                        className="text-xs text-cyan-400 hover:text-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleCopySuggestion(suggestion, index)}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
                       >
-                        Copy
+                        {copiedIndex === index ? (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copy
+                          </>
+                        )}
                       </button>
                     </div>
                   ))}

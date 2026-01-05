@@ -33,7 +33,7 @@ export class FakeTicketAIProvider implements TicketAIProvider {
       (room.status === 'OPEN' && messageCount > 3 && isCustomerMessage) ||
       (messageCount > 5 && isCustomerMessage)
 
-    // Generate summary
+    // Generate summary - more tailored and contextual
     let summary = ''
     if (messageCount === 0) {
       summary = `New ${room.ticketDepartment || 'General'} support ticket: "${room.title}". No messages yet.`
@@ -42,48 +42,96 @@ export class FakeTicketAIProvider implements TicketAIProvider {
       const customerMessages = messages.filter(m => m.role === 'Customer')
       const agentMessages = messages.filter(m => m.role === 'Support Agent')
       
-      summary = `Customer reported: "${firstMessage.content.substring(0, 100)}${firstMessage.content.length > 100 ? '...' : ''}"`
+      // Extract key details from first message
+      const firstMessagePreview = firstMessage.content.length > 120 
+        ? firstMessage.content.substring(0, 120) + '...'
+        : firstMessage.content
       
-      if (hasUrgentKeywords) summary += ' Customer indicates urgency.'
-      if (hasAngryKeywords) summary += ' Customer expresses frustration.'
-      if (hasSecurityKeywords) summary += ' Security-related concern detected.'
-      if (hasBillingKeywords) summary += ' Billing/payment issue mentioned.'
-      if (hasLoginKeywords) summary += ' Account access issue reported.'
-      
-      summary += ` ${customerMessages.length} customer message(s), ${agentMessages.length} agent response(s).`
-      
-      if (room.status) {
-        summary += ` Current status: ${room.status}.`
+      // Build contextual summary based on department
+      const dept = room.ticketDepartment || 'GENERAL'
+      if (dept === 'IT_SUPPORT') {
+        summary = `IT Support ticket: Customer experiencing "${firstMessagePreview}". `
+      } else if (dept === 'BILLING') {
+        summary = `Billing inquiry: Customer has questions about "${firstMessagePreview}". `
+      } else if (dept === 'PRODUCT') {
+        summary = `Product feedback: Customer requesting "${firstMessagePreview}". `
+      } else {
+        summary = `Support request: Customer reported "${firstMessagePreview}". `
       }
       
+      // Add emotional/urgency context
+      if (hasUrgentKeywords) summary += 'Customer indicates this is urgent and requires immediate attention. '
+      if (hasAngryKeywords) summary += 'Customer expresses frustration and dissatisfaction. '
+      if (hasSecurityKeywords) summary += 'Security-related concern detected - requires priority handling. '
+      if (hasBillingKeywords && dept !== 'BILLING') summary += 'Billing/payment issue mentioned. '
+      if (hasLoginKeywords && dept !== 'IT_SUPPORT') summary += 'Account access issue reported. '
+      
+      // Add conversation flow context
+      summary += `Conversation includes ${customerMessages.length} customer message(s) and ${agentMessages.length} agent response(s). `
+      
+      if (room.status) {
+        summary += `Ticket status: ${room.status}. `
+      }
+      
+      // Add next action context
       if (isCustomerMessage && agentMessages.length === 0) {
-        summary += ' Awaiting initial agent response.'
+        summary += 'Awaiting initial agent response - customer needs assistance.'
       } else if (isCustomerMessage && agentMessages.length > 0) {
-        summary += ' Customer is waiting for follow-up.'
+        summary += 'Customer is waiting for follow-up after previous agent response.'
+      } else if (agentMessages.length > 0 && !isCustomerMessage) {
+        summary += 'Agent has responded - monitoring for customer reply.'
       }
     }
 
-    // Generate contextual suggestions
+    // Generate contextual suggestions - more tailored to department and situation
     const suggestions: string[] = []
+    const dept = room.ticketDepartment || 'GENERAL'
     
-    if (hasBillingKeywords) {
-      suggestions.push(`I understand your concern about the billing issue. Let me review your account and payment history to resolve this for you.`)
-      suggestions.push(`I've checked your account and I can help you with this billing matter. Would you like me to process a refund or adjust the charges?`)
-    } else if (hasLoginKeywords) {
-      suggestions.push(`I can help you regain access to your account. Let me verify your identity and reset your credentials securely.`)
-      suggestions.push(`I understand you're having trouble logging in. I'll help you reset your password and secure your account.`)
-    } else if (hasSecurityKeywords) {
-      suggestions.push(`This is a security concern that requires immediate attention. I'm escalating this to our security team for review.`)
-      suggestions.push(`I take security issues seriously. Let me investigate this immediately and take appropriate action to protect your account.`)
-    } else if (hasUrgentKeywords || hasAngryKeywords) {
-      suggestions.push(`I understand this is urgent and I apologize for any inconvenience. Let me prioritize this and get you a resolution as quickly as possible.`)
-      suggestions.push(`I sincerely apologize for the frustration this has caused. I'm personally looking into this right now and will provide an update shortly.`)
+    // Department-specific suggestions
+    if (dept === 'IT_SUPPORT') {
+      if (hasLoginKeywords) {
+        suggestions.push(`I can help you regain access to your account. Let me verify your identity and reset your credentials securely.`)
+        suggestions.push(`I understand you're having trouble logging in. I'll help you reset your password and secure your account. Please check your email for the reset link.`)
+        suggestions.push(`I've initiated a password reset for your account. You should receive an email with instructions within the next few minutes. If you don't see it, please check your spam folder.`)
+      } else if (hasUrgentKeywords) {
+        suggestions.push(`I understand this is urgent and affecting your ability to work. Let me prioritize this and get you a resolution as quickly as possible.`)
+        suggestions.push(`I've escalated this to our technical team for immediate attention. I'll provide you with an update within the next hour.`)
+      } else {
+        suggestions.push(`Thank you for reporting this technical issue. I'm investigating the problem and will work to resolve it for you.`)
+        suggestions.push(`I've reviewed the issue you're experiencing. Let me check our system logs and get back to you with a solution shortly.`)
+        suggestions.push(`I understand the frustration this technical issue is causing. I'm working on a fix and will update you as soon as I have more information.`)
+      }
+    } else if (dept === 'BILLING') {
+      if (hasBillingKeywords) {
+        suggestions.push(`I understand your concern about the billing issue. Let me review your account and payment history to resolve this for you.`)
+        suggestions.push(`I've checked your account and I can help you with this billing matter. Would you like me to process a refund or adjust the charges?`)
+        suggestions.push(`I've reviewed your billing statement and found the discrepancy. I'll process a credit to your account and send you an updated invoice.`)
+      } else {
+        suggestions.push(`Thank you for reaching out about your billing question. Let me review your account details and get back to you with a clear explanation.`)
+        suggestions.push(`I've examined your payment history and can clarify the charges for you. I'll send a detailed breakdown via email.`)
+      }
+    } else if (dept === 'PRODUCT') {
+      suggestions.push(`Thank you for your product feedback. I've logged your feature request and will share it with our product team for consideration.`)
+      suggestions.push(`I appreciate you taking the time to share this idea. Our product team reviews all feature requests, and I'll make sure yours is included in the next planning cycle.`)
+      suggestions.push(`This is a great suggestion! I've added it to our product roadmap for review. I'll keep you updated on any progress.`)
     } else {
-      suggestions.push(`Thank you for contacting us about "${room.title}". I understand your concern and I'm here to help. Let me investigate this issue for you.`)
-      suggestions.push(`I've reviewed your ticket and I can help you resolve this. Based on the information provided, I recommend the following steps...`)
+      // GENERAL department
+      if (hasSecurityKeywords) {
+        suggestions.push(`This is a security concern that requires immediate attention. I'm escalating this to our security team for review.`)
+        suggestions.push(`I take security issues seriously. Let me investigate this immediately and take appropriate action to protect your account.`)
+      } else if (hasUrgentKeywords || hasAngryKeywords) {
+        suggestions.push(`I understand this is urgent and I apologize for any inconvenience. Let me prioritize this and get you a resolution as quickly as possible.`)
+        suggestions.push(`I sincerely apologize for the frustration this has caused. I'm personally looking into this right now and will provide an update shortly.`)
+      } else {
+        suggestions.push(`Thank you for contacting us about "${room.title}". I understand your concern and I'm here to help. Let me investigate this issue for you.`)
+        suggestions.push(`I've reviewed your ticket and I can help you resolve this. Based on the information provided, I recommend the following steps...`)
+      }
     }
     
-    suggestions.push(`I appreciate your patience. I'm currently looking into this matter and will provide you with an update shortly.`)
+    // Add a general follow-up suggestion if we have space
+    if (suggestions.length < 4) {
+      suggestions.push(`I appreciate your patience. I'm currently looking into this matter and will provide you with an update shortly.`)
+    }
 
     // Limit to 3-5 suggestions
     const finalSuggestions = suggestions.slice(0, 5)
@@ -153,58 +201,59 @@ export class FakeTicketAIProvider implements TicketAIProvider {
     const newCustomerMessages = newMessages.filter(m => m.role === 'Customer')
     const newAgentMessages = newMessages.filter(m => m.role === 'Support Agent')
 
-    // Merge summary: previous summary + new information
+    // Merge summary: previous summary + new information (more natural flow)
     let mergedSummary = previousSummary.trim()
     
-    // Add update indicator
+    // Add update indicator with context
     if (newMessageCount === 1) {
-      mergedSummary += ` [Update: 1 new message received.`
+      mergedSummary += ` [Update: 1 new message received`
     } else {
-      mergedSummary += ` [Update: ${newMessageCount} new messages received.`
+      mergedSummary += ` [Update: ${newMessageCount} new messages received`
     }
 
-    // Add new information based on new messages
+    // Add new information based on new messages (more contextual)
     if (hasNewUrgentKeywords) {
-      mergedSummary += ' Customer indicates urgency in recent messages.'
+      mergedSummary += ' - customer indicates urgency'
     }
     if (hasNewAngryKeywords) {
-      mergedSummary += ' Customer expresses increased frustration.'
+      mergedSummary += ' - customer expresses increased frustration'
     }
     if (hasNewSecurityKeywords) {
-      mergedSummary += ' Security-related concern mentioned in recent messages.'
+      mergedSummary += ' - security-related concern mentioned'
     }
     if (hasNewBillingKeywords) {
-      mergedSummary += ' Billing/payment issue discussed recently.'
+      mergedSummary += ' - billing/payment issue discussed'
     }
     if (hasNewLoginKeywords) {
-      mergedSummary += ' Account access issue mentioned in recent messages.'
+      mergedSummary += ' - account access issue mentioned'
     }
 
     // Update message counts
-    if (newCustomerMessages.length > 0) {
-      mergedSummary += ` ${newCustomerMessages.length} additional customer message(s).`
-    }
-    if (newAgentMessages.length > 0) {
-      mergedSummary += ` ${newAgentMessages.length} additional agent response(s).`
+    if (newCustomerMessages.length > 0 && newAgentMessages.length > 0) {
+      mergedSummary += ` - ${newCustomerMessages.length} customer message(s) and ${newAgentMessages.length} agent response(s)`
+    } else if (newCustomerMessages.length > 0) {
+      mergedSummary += ` - ${newCustomerMessages.length} customer message(s)`
+    } else if (newAgentMessages.length > 0) {
+      mergedSummary += ` - ${newAgentMessages.length} agent response(s)`
     }
 
     // Update status based on latest message
     if (isCustomerMessage && newAgentMessages.length === 0) {
-      mergedSummary += ' Customer is awaiting response.'
+      mergedSummary += ' - customer awaiting response'
     } else if (newAgentMessages.length > 0) {
-      mergedSummary += ' Agent has responded.'
+      mergedSummary += ' - agent has responded'
     }
 
     mergedSummary += ']'
 
-    // Update suggestions based on new context
-    // If new messages introduce new keywords, update suggestions
+    // Update suggestions based on new context - more tailored
     let suggestions: string[] = []
+    const dept = room.ticketDepartment || 'GENERAL'
     
-    if (hasNewBillingKeywords) {
+    if (hasNewBillingKeywords || (dept === 'BILLING' && newCustomerMessages.length > 0)) {
       suggestions.push(`I understand your concern about the billing issue. Let me review your account and payment history to resolve this for you.`)
       suggestions.push(`I've checked your account and I can help you with this billing matter. Would you like me to process a refund or adjust the charges?`)
-    } else if (hasNewLoginKeywords) {
+    } else if (hasNewLoginKeywords || (dept === 'IT_SUPPORT' && newCustomerMessages.length > 0)) {
       suggestions.push(`I can help you regain access to your account. Let me verify your identity and reset your credentials securely.`)
       suggestions.push(`I understand you're having trouble logging in. I'll help you reset your password and secure your account.`)
     } else if (hasNewSecurityKeywords) {
@@ -217,7 +266,11 @@ export class FakeTicketAIProvider implements TicketAIProvider {
       // Keep previous suggestions if no new keywords, but add a contextual one
       suggestions = [...previousInsights.suggestions]
       if (isCustomerMessage) {
-        suggestions.unshift(`Thank you for the update. I'm reviewing the latest information and will respond shortly.`)
+        if (dept === 'PRODUCT') {
+          suggestions.unshift(`Thank you for the additional feedback. I've updated the feature request with your latest input.`)
+        } else {
+          suggestions.unshift(`Thank you for the update. I'm reviewing the latest information and will respond shortly.`)
+        }
       }
     }
 
