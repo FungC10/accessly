@@ -8,6 +8,7 @@ interface User {
   email: string | null
   name: string | null
   role: string
+  department: string | null
   createdAt: string
   ban?: {
     reason: string | null
@@ -43,6 +44,38 @@ export function AdminPanel() {
   const [showBanModal, setShowBanModal] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+
+  // Get badge info for user (department if available, otherwise role)
+  const getUserBadgeInfo = (user: User) => {
+    // If user has a department, show department badge
+    if (user.department) {
+      const departmentLabels: Record<string, string> = {
+        ENGINEERING: 'Engineering',
+        BILLING: 'Billing',
+        PRODUCT: 'Product',
+        GENERAL: 'General',
+      }
+      const departmentColors: Record<string, string> = {
+        ENGINEERING: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+        BILLING: 'bg-green-500/20 text-green-300 border border-green-500/30',
+        PRODUCT: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+        GENERAL: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
+      }
+      return {
+        label: departmentLabels[user.department] || user.department,
+        color: departmentColors[user.department] || 'bg-slate-700/50 text-slate-300 border border-slate-600/50',
+      }
+    }
+
+    // Fallback to role badge if no department
+    return {
+      label: user.role,
+      color:
+        user.role === 'ADMIN'
+          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+          : 'bg-slate-700/50 text-slate-300 border border-slate-600/50',
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -178,57 +211,54 @@ export function AdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-b border-slate-800/50">
-                  <td className="py-2 px-4">{user.email || 'N/A'}</td>
-                  <td className="py-2 px-4">{user.name || 'N/A'}</td>
-                  <td className="py-2 px-4">
-                    <span
-                      className={`px-2 py-1 text-xs font-semibold rounded ${
-                        user.role === 'ADMIN'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'bg-slate-700/50 text-slate-300'
-                      }`}
-                    >
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="py-2 px-4">
-                    {user.ban ? (
-                      <span className="px-2 py-1 text-xs bg-red-500/20 text-red-300 border border-red-500/30 rounded">
-                        Banned
+              {users.map((user) => {
+                const badgeInfo = getUserBadgeInfo(user)
+                return (
+                  <tr key={user.id} className="border-b border-slate-800/50">
+                    <td className="py-2 px-4">{user.email || 'N/A'}</td>
+                    <td className="py-2 px-4">{user.name || 'N/A'}</td>
+                    <td className="py-2 px-4">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${badgeInfo.color}`}>
+                        {badgeInfo.label}
                       </span>
-                    ) : (
-                      <span className="px-2 py-1 text-xs bg-green-500/20 text-green-300 border border-green-500/30 rounded">
-                        Active
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 px-4">{user._count?.messages ?? 0}</td>
-                  <td className="py-2 px-4">{user._count?.memberships ?? 0}</td>
-                  <td className="py-2 px-4">
-                    <div className="flex gap-2">
+                    </td>
+                    <td className="py-2 px-4">
                       {user.ban ? (
-                        <button
-                          onClick={() => handleUnban(user.id)}
-                          className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
-                          disabled={user.id === session?.user?.id}
-                        >
-                          Unban
-                        </button>
+                        <span className="px-2 py-1 text-xs bg-red-500/20 text-red-300 border border-red-500/30 rounded">
+                          Banned
+                        </span>
                       ) : (
-                        <button
-                          onClick={() => handleBan(user.id)}
-                          className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded"
-                          disabled={user.id === session?.user?.id || user.role === 'ADMIN'}
-                        >
-                          Ban
-                        </button>
+                        <span className="px-2 py-1 text-xs bg-green-500/20 text-green-300 border border-green-500/30 rounded">
+                          Active
+                        </span>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-2 px-4">{user._count?.messages ?? 0}</td>
+                    <td className="py-2 px-4">{user._count?.memberships ?? 0}</td>
+                    <td className="py-2 px-4">
+                      <div className="flex gap-2">
+                        {user.ban ? (
+                          <button
+                            onClick={() => handleUnban(user.id)}
+                            className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 rounded"
+                            disabled={user.id === session?.user?.id}
+                          >
+                            Unban
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleBan(user.id)}
+                            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded"
+                            disabled={user.id === session?.user?.id || user.role === 'ADMIN'}
+                          >
+                            Ban
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -252,7 +282,7 @@ export function AdminPanel() {
             <tbody>
               {rooms.map((room) => (
                 <tr key={room.id} className="border-b border-slate-800/50">
-                  <td className="py-2 px-4">{room.name}</td>
+                  <td className="py-2 px-4">{room.title || room.name}</td>
                   <td className="py-2 px-4">
                     <span
                       className={`px-2 py-1 text-xs font-semibold rounded ${

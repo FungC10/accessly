@@ -29,12 +29,35 @@ export interface StaffAnalyticsResponse {
 /**
  * Get staff analytics data
  * This logic is shared between the API route and server components
+ * 
+ * Note: "Staff" here refers to anyone assigned to tickets (as OWNER),
+ * not just users with ADMIN role. This includes all ticket assignees
+ * regardless of their role, which is consistent with how ticket
+ * assignment and resolution tracking works.
  */
 export async function getStaffAnalytics(): Promise<StaffAnalyticsResponse> {
-  // Get all admin users (staff)
+  // Get all users who are assigned to at least one ticket (as OWNER)
+  // This includes both admins and regular users who have been assigned tickets
+  const ticketAssignees = await prisma.roomMember.findMany({
+    where: {
+      role: RoomRole.OWNER,
+      room: {
+        type: RoomType.TICKET,
+      },
+    },
+    select: {
+      userId: true,
+    },
+    distinct: ['userId'],
+  })
+
+  // Get user details for all ticket assignees
+  const staffUserIds = ticketAssignees.map(ta => ta.userId)
   const staffUsers = await prisma.user.findMany({
     where: {
-      role: Role.ADMIN,
+      id: {
+        in: staffUserIds,
+      },
     },
     select: {
       id: true,
