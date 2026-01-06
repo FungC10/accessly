@@ -71,14 +71,8 @@ async function POSTHandler(request: Request) {
     // Default to 'peek' if action not specified (backward compatibility)
     const requestAction = action || 'peek'
 
-    // Check if user is DEMO_OBSERVER trying to refresh (block refresh, allow peek)
-    if (requestAction === 'refresh' && dbUser.role === 'DEMO_OBSERVER') {
-      return Response.json({
-        ok: false,
-        code: 'DEMO_MODE',
-        message: 'Demo mode: This action is disabled',
-      }, { status: 403 })
-    }
+    // Note: DEMO_OBSERVER can refresh AI insights (it's just generating insights, not modifying user/ticket data)
+    // This is safe for portfolio demo and showcases the AI feature
 
     // Verify room exists and is a TICKET
     const room = await prisma.room.findUnique({
@@ -121,7 +115,8 @@ async function POSTHandler(request: Request) {
     })
 
     const isAdmin = dbUser.role === Role.ADMIN
-    const hasAccess = !!membership || isAdmin
+    const isDemoObserver = dbUser.role === 'DEMO_OBSERVER'
+    const hasAccess = !!membership || isAdmin || isDemoObserver
 
     if (!hasAccess) {
       return Response.json({
