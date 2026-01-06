@@ -97,6 +97,47 @@ const leadershipMessages = [
   'Discussion: How should we handle the increased ticket volume?',
 ]
 
+// Extra chat samples so every visible room feels "alive"
+const billingMessages = [
+  'Heads up: we got a question about an unexpected prorated charge — can someone sanity check the timeline?',
+  'Refund policy reminder: if it’s within 14 days and unused, we can process without escalation.',
+  'Chargeback came in for invoice #4821 — I’m pulling the receipt + usage logs now.',
+  'We should add a help-center snippet for “Why was I charged twice?” (usually pending auth + capture).',
+  'FYI: finance asked us to tag “refund” vs “credit” more consistently in ticket notes.',
+  'Can we confirm whether annual upgrades are billed immediately or at renewal? Docs look outdated.',
+  'I’ll draft a macro reply for “invoice PDF request” — we get this a lot.',
+]
+
+const productMessages = [
+  'Quick pulse: onboarding step “Connect Workspace” is still where most drop-offs happen.',
+  'If we add a dark mode toggle, we should also ship an “auto (system)” option.',
+  'Can we get a quick UX review on the ticket status dropdown? Users keep missing “Waiting”.',
+  'Feature request roundup: saved searches + notification rules are trending.',
+  'I’m collecting quotes for #customer-voice — please drop notable feedback (no PII).',
+  'For next sprint: I’d like to ship “Assign to me” on tickets and reduce clicks.',
+  'Roadmap note: demo mode should stay read-only but browseable across PUBLIC rooms.',
+]
+
+const generalDiscussionMessages = [
+  'Morning! Anything blocking today?',
+  'PSA: if you’re on-call this week, please keep an eye on the auth error dashboard.',
+  'Reminder: keep customer names out of public rooms — use ticket IDs instead.',
+  'Small win: median first response time is down since last week.',
+  'If anyone wants to pair on “search relevance”, I’m free after 3pm.',
+  'Shoutout to Billing for untangling that upgrade issue so quickly.',
+  'We should do a 15-min demo of the new moderation tools on Friday.',
+]
+
+const customerVoiceMessages = [
+  '“Love the speed of support — felt human.” (from last week’s survey)',
+  'Customer asks for “status page subscriptions” — they want proactive incident emails.',
+  'Feedback theme: “I can’t find my invoices easily” keeps coming up.',
+  'Positive note: several users called out the new ticket summaries as “super helpful”.',
+  'Request: “Slack notifications for ticket updates” — multiple +1s.',
+  'Pain point: password reset emails sometimes land in spam for some domains.',
+  'Someone asked if we can export ticket history as CSV/PDF for audits.',
+]
+
 const dmMessages = [
   'Can you take a look at the login ticket? Customer is waiting',
   'I\'ll handle the billing question, thanks for flagging it',
@@ -159,6 +200,14 @@ function randomPastWeekDate(): Date {
 // Generate random message from array
 function randomMessage(messages: string[]): string {
   return messages[Math.floor(Math.random() * messages.length)]
+}
+
+function addMinutes(d: Date, minutes: number): Date {
+  return new Date(d.getTime() + minutes * 60 * 1000)
+}
+
+function randInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
 async function main() {
@@ -318,7 +367,8 @@ async function main() {
     update: {
       password: demoObserverPassword,
       name: 'Demo Observer',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+      // Stable "girl" avatar for demo user
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sophia',
       role: Role.DEMO_OBSERVER, // Ensure role is set correctly
     },
     create: {
@@ -327,7 +377,8 @@ async function main() {
       emailVerified: new Date(),
       role: Role.DEMO_OBSERVER,
       password: demoObserverPassword,
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+      // Stable "girl" avatar for demo user
+      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sophia',
     },
   })
   console.log('✅ Created demo observer user:', demoObserver.email)
@@ -752,69 +803,256 @@ async function main() {
   console.log('💬 STEP 4: Generating messages...')
   console.log('   (Keeping total messages between 50-120 for optimal performance)\n')
 
-  // Announcements room: 15 messages
-  const generalMembers = internalUsers.slice(0, 8) // Use first 8 internal users for variety
-  const generalMessageIds: string[] = []
-  for (let i = 0; i < 15; i++) {
-    const randomUser = generalMembers[Math.floor(Math.random() * generalMembers.length)]
-    const message = await prisma.message.create({
+  const seedSequence = async ({
+    roomId,
+    participants,
+    messages,
+    startAt,
+    minGapMinutes = 8,
+    maxGapMinutes = 180,
+  }: {
+    roomId: string
+    participants: Array<{ id: string }>
+    messages: string[]
+    startAt: Date
+    minGapMinutes?: number
+    maxGapMinutes?: number
+  }) => {
+    let t = startAt
+    for (let i = 0; i < messages.length; i++) {
+      const u = participants[i % participants.length]
+      await prisma.message.create({
       data: {
-        roomId: generalRoom.id,
-        userId: randomUser.id,
-        content: randomMessage(announcementMessages),
-        createdAt: randomPastWeekDate(),
+          roomId,
+          userId: u.id,
+          content: messages[i],
+          createdAt: t,
+        },
+      })
+      t = addMinutes(t, randInt(minGapMinutes, maxGapMinutes))
+    }
+  }
+
+  const seedThread = async ({
+    roomId,
+    rootUserId,
+    rootContent,
+    rootCreatedAt,
+    replies,
+  }: {
+    roomId: string
+    rootUserId: string
+    rootContent: string
+    rootCreatedAt: Date
+    replies: Array<{ userId: string; content: string; minutesAfter: number }>
+  }) => {
+    const root = await prisma.message.create({
+      data: {
+        roomId,
+        userId: rootUserId,
+        content: rootContent,
+        createdAt: rootCreatedAt,
       },
     })
-    generalMessageIds.push(message.id)
-  }
-  console.log(`   ✅ Generated 15 messages for Company Announcements`)
-
-  // Engineering room: 12 messages (ENGINEERING department users)
-  const techMembers = [user1, user2, user3, admin1] // Engineering dept + admin
-  const techMessageIds: string[] = []
-  for (let i = 0; i < 12; i++) {
-    const randomUser = techMembers[Math.floor(Math.random() * techMembers.length)]
-    const message = await prisma.message.create({
-      data: {
-        roomId: techRoom.id,
-        userId: randomUser.id,
-        content: randomMessage(engineeringMessages),
-        createdAt: randomPastWeekDate(),
-      },
-    })
-    techMessageIds.push(message.id)
-  }
-  console.log(`   ✅ Generated 12 messages for Engineering & Incidents`)
-
-  // Team Lounge room: 10 messages
-  const randomMembers = internalUsers.slice(0, 6) // Mix of internal users
-  for (let i = 0; i < 10; i++) {
-    const randomUser = randomMembers[Math.floor(Math.random() * randomMembers.length)]
+    for (const r of replies) {
     await prisma.message.create({
       data: {
-        roomId: randomRoom.id,
-        userId: randomUser.id,
-        content: randomMessage(loungeMessages),
-        createdAt: randomPastWeekDate(),
+          roomId,
+          userId: r.userId,
+          content: r.content,
+          parentMessageId: root.id,
+          createdAt: addMinutes(rootCreatedAt, r.minutesAfter),
       },
     })
   }
-  console.log(`   ✅ Generated 10 messages for Team Lounge`)
+  }
 
-  // Leadership room: 8 messages (only members can see)
-  const privateMembers = [admin1, admin2, user1] // Only invited members
-  for (let i = 0; i < 8; i++) {
-    const randomUser = privateMembers[Math.floor(Math.random() * privateMembers.length)]
-    await prisma.message.create({
-      data: {
+  // Spread activity across the last week so rooms feel natural
+  const startAnnouncements = randomPastWeekDate()
+  const startEngineering = randomPastWeekDate()
+  const startLounge = randomPastWeekDate()
+  const startCustomerVoice = randomPastWeekDate()
+  const startBilling = randomPastWeekDate()
+  const startProduct = randomPastWeekDate()
+  const startGeneral = randomPastWeekDate()
+  const startLeadership = randomPastWeekDate()
+
+  // #announcements (PUBLIC_GLOBAL): mostly admins, occasional team replies
+  await seedSequence({
+    roomId: generalRoom.id,
+    participants: [admin1, admin2, user7, user4, user1],
+    messages: [
+      'Welcome! Use #announcements for official updates; department rooms for day-to-day.',
+      'Deploy window this weekend: Saturday 02:00–03:00 UTC. Expect brief read-only mode.',
+      'FYI: ticket SLA target for first response is now 2h during business hours.',
+      'We’re updating escalation procedures — please skim the doc when you can.',
+      'Nice work last week: response-time metrics improved noticeably.',
+      'For portfolio/demo: DEMO_OBSERVER is read-only but can browse PUBLIC rooms.',
+      randomMessage(announcementMessages),
+      randomMessage(announcementMessages),
+      randomMessage(announcementMessages),
+      'Reminder: avoid posting customer PII in public rooms — use ticket IDs.',
+      'All hands Friday 2pm. Agenda: Q1 roadmap + reliability updates.',
+    ],
+    startAt: startAnnouncements,
+    minGapMinutes: 30,
+    maxGapMinutes: 8 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for Company Announcements`)
+
+  // #engineering (ENGINEERING): incident-y, more rapid back-and-forth
+  await seedSequence({
+    roomId: techRoom.id,
+    participants: [user1, user2, user3, admin1],
+    messages: [
+      'Seeing a spike in auth errors after the last deploy — anyone else?',
+      'Confirmed: errors mostly on refresh-token rotation. Digging.',
+      'Likely related to cookie SameSite changes. I’ll patch and run staging.',
+      'While you’re at it, can we add a dashboard panel for 401/403 by route?',
+      'Patch is ready — deploying a hotfix in 10.',
+      'Hotfix deployed. Error rate trending down.',
+      randomMessage(engineeringMessages),
+      randomMessage(engineeringMessages),
+      'Postmortem note: add a canary step for auth flows next time.',
+      'I’ll update the runbook for “login failures after deploy”.',
+      randomMessage(engineeringMessages),
+      randomMessage(engineeringMessages),
+    ],
+    startAt: startEngineering,
+    minGapMinutes: 6,
+    maxGapMinutes: 90,
+  })
+  console.log(`   ✅ Seeded conversation for Engineering & Incidents`)
+
+  // #team-lounge (PUBLIC_GLOBAL): casual
+  await seedSequence({
+    roomId: randomRoom.id,
+    participants: [user10, user11, user12, user8, admin2, user2],
+    messages: [
+      'Coffee check: who wants a refill?',
+      'Shoutout to whoever handled that gnarly billing thread — saved my morning.',
+      'Weekend plans? I’m thinking hiking if weather holds.',
+      'Question: favorite keyboard shortcut you can’t live without?',
+      'I’m voting for “search in repo” being the real MVP.',
+      'We should do a 15-min “demo tips” session for new folks.',
+      randomMessage(loungeMessages),
+      randomMessage(loungeMessages),
+      randomMessage(loungeMessages),
+      'Also… what’s the best desk snack? Asking for science.',
+      randomMessage(loungeMessages),
+    ],
+    startAt: startLounge,
+    minGapMinutes: 20,
+    maxGapMinutes: 6 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for Team Lounge`)
+
+  // #customer-voice (PUBLIC_GLOBAL): feedback snippets + a short thread
+  await seedSequence({
+    roomId: gamingRoom.id,
+    participants: [user8, user7, admin2, user4, user1],
+    messages: [
+      'Dropping a few themes from support this week:',
+      '1) invoices hard to find\n2) want Slack notifications\n3) dark mode requests keep coming',
+      randomMessage(customerVoiceMessages),
+      randomMessage(customerVoiceMessages),
+      'If you hear a strong quote, paste it here (no PII).',
+      randomMessage(customerVoiceMessages),
+    ],
+    startAt: startCustomerVoice,
+    minGapMinutes: 45,
+    maxGapMinutes: 10 * 60,
+  })
+  await seedThread({
+    roomId: gamingRoom.id,
+    rootUserId: user7.id,
+    rootContent: 'Customer asked: “Can I export ticket history for audits?” — feels like a common enterprise need.',
+    rootCreatedAt: addMinutes(startCustomerVoice, 12),
+    replies: [
+      { userId: admin2.id, content: 'Agree. Let’s capture this as a product request + note which formats matter (CSV/PDF).', minutesAfter: 35 },
+      { userId: user4.id, content: 'Billing angle: invoices + ticket exports often requested together. Might bundle as “Reports & Exports”.', minutesAfter: 75 },
+      { userId: user1.id, content: 'If we do this, ensure export respects room access rules (and redacts PII).', minutesAfter: 120 },
+    ],
+  })
+  console.log(`   ✅ Seeded conversation for Customer Voice`)
+
+  // #billing-internal (BILLING): policy + operational notes
+  await seedSequence({
+    roomId: billingRoom.id,
+    participants: [user4, user5, user6, admin1],
+    messages: [
+      'Morning Billing team — any escalations we should preempt today?',
+      randomMessage(billingMessages),
+      randomMessage(billingMessages),
+      'I’ll update the macro for proration explanations after lunch.',
+      randomMessage(billingMessages),
+      'If you see “double charge” reports, ask for last 4 + timestamp and check pending auth holds.',
+      randomMessage(billingMessages),
+      'Closing the loop on finance request: tagging guidelines posted in the doc.',
+    ],
+    startAt: startBilling,
+    minGapMinutes: 25,
+    maxGapMinutes: 5 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for Billing & Accounts (Internal)`)
+
+  // #product (PRODUCT): roadmap-y
+  await seedSequence({
+    roomId: productRoom.id,
+    participants: [user7, user8, user9, admin2],
+    messages: [
+      'Sprint planning prep: top 3 asks from support?',
+      randomMessage(productMessages),
+      'My guess: 1) dark mode, 2) saved searches, 3) Slack notifications.',
+      randomMessage(productMessages),
+      randomMessage(productMessages),
+      'Can we align on a “demo narrative” for the portfolio version? (read-only but rich data).',
+      randomMessage(productMessages),
+      'I’ll summarize decisions after the meeting.',
+    ],
+    startAt: startProduct,
+    minGapMinutes: 40,
+    maxGapMinutes: 8 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for Product & Features`)
+
+  // #general (GENERAL dept): cross-team coordination
+  await seedSequence({
+    roomId: generalRoom2.id,
+    participants: [user10, user11, user12, admin1, user2],
+    messages: [
+      randomMessage(generalDiscussionMessages),
+      randomMessage(generalDiscussionMessages),
+      'Heads up: we’re polishing the demo seed so rooms look naturally active.',
+      randomMessage(generalDiscussionMessages),
+      randomMessage(generalDiscussionMessages),
+      'If you spot any confusing chat UX, drop notes here.',
+      randomMessage(generalDiscussionMessages),
+      'Thanks all — keep it moving.',
+    ],
+    startAt: startGeneral,
+    minGapMinutes: 35,
+    maxGapMinutes: 9 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for General Discussion`)
+
+  // #leadership (PRIVATE): fewer, higher-signal messages
+  await seedSequence({
         roomId: privateRoom.id,
-        userId: randomUser.id,
-        content: randomMessage(leadershipMessages),
-        createdAt: randomPastWeekDate(),
-      },
-    })
-  }
-  console.log(`   ✅ Generated 8 messages for Leadership Sync`)
+    participants: [admin1, admin2, user1],
+    messages: [
+      'Weekly review: anything urgent we should unblock cross-team?',
+      'Ticket volume is up but response time is stable. Keep an eye on auth-related issues.',
+      'Decision: prioritize reliability and demo polish this week. No big refactors.',
+      randomMessage(leadershipMessages),
+      randomMessage(leadershipMessages),
+      'Action items: update escalation doc + confirm on-call rotations.',
+    ],
+    startAt: startLeadership,
+    minGapMinutes: 90,
+    maxGapMinutes: 12 * 60,
+  })
+  console.log(`   ✅ Seeded conversation for Leadership Sync`)
 
   // DM room removed per requirements
 
@@ -913,8 +1151,7 @@ async function main() {
   })
   console.log(`   ✅ Generated 2 messages for customer ticket 2 (payment issue)`) */
 
-  const totalMessages = 15 + 12 + 10 + 8 + ticketRooms.length + (2 + 2 + 2) + 3 + 2 // = 15+12+10+8+4+7+5 = 61 messages (customer tickets removed)
-  console.log(`\n   📊 Total messages: ${totalMessages} (within 50-120 range)`)
+  // NOTE: use DB count below for accuracy (avoid manual math drift).
 
   // ============================================
   // STEP 5: Verification
