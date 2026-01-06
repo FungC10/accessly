@@ -703,6 +703,41 @@ async function main() {
   // External customer tickets removed - internal-only system
   console.log(`   ✅ External customer tickets removed (internal-only system)\n`)
 
+  // Add DEMO_OBSERVER to rooms for portfolio demo visibility
+  // Add to all PUBLIC_GLOBAL rooms (so they can see announcements and general content)
+  for (const room of publicGlobalRooms) {
+    await prisma.roomMember.create({
+      data: {
+        userId: demoObserver.id,
+        roomId: room.id,
+        role: RoomRole.MEMBER,
+      },
+    })
+  }
+  console.log(`   ✅ Added DEMO_OBSERVER to ${publicGlobalRooms.length} PUBLIC_GLOBAL rooms`)
+
+  // Add to all ticket rooms (so they can see tickets and AI insights)
+  for (const room of ticketRooms) {
+    await prisma.roomMember.create({
+      data: {
+        userId: demoObserver.id,
+        roomId: room.id,
+        role: RoomRole.MEMBER,
+      },
+    })
+  }
+  console.log(`   ✅ Added DEMO_OBSERVER to ${ticketRooms.length} ticket rooms`)
+
+  // Add to one department room (Engineering) for variety
+  await prisma.roomMember.create({
+    data: {
+      userId: demoObserver.id,
+      roomId: techRoom.id,
+      role: RoomRole.MEMBER,
+    },
+  })
+  console.log(`   ✅ Added DEMO_OBSERVER to #engineering room`)
+
   // ============================================
   // STEP 4: Create Messages
   // ============================================
