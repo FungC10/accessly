@@ -100,11 +100,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        // On initial sign-in, use user data from authorize
         token.sub = user.id
         token.role = (user as any).role ?? Role.USER
         token.image = (user as any).image ?? null
         token.name = (user as any).name ?? null
         token.email = (user as any).email ?? null
+      } else if (token.sub) {
+        // On subsequent requests, refresh user data from database
+        // This ensures avatar/image updates are reflected without requiring re-login
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { id: true, email: true, name: true, image: true, role: true },
+          })
+          if (dbUser) {
+            token.role = dbUser.role
+            token.image = dbUser.image
+            token.name = dbUser.name
+            token.email = dbUser.email
+          }
+        } catch (error) {
+          console.error('Error refreshing user data in JWT callback:', error)
+          // Continue with existing token data if refresh fails
+        }
       }
       return token
     },

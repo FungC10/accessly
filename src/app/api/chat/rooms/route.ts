@@ -239,8 +239,8 @@ export async function GET(request: Request) {
           return true
         }
         if (r.type === 'PUBLIC') {
-          if (isAdmin) {
-            // Admins see all PUBLIC rooms
+          if (isAdmin || isDemoObserver) {
+            // Admins and DEMO_OBSERVER see all PUBLIC rooms they're a member of
             return true
           }
           // Non-admins: only see PUBLIC rooms matching their department or PUBLIC_GLOBAL
@@ -249,20 +249,89 @@ export async function GET(request: Request) {
         return false
       })
 
-    // For DEMO_OBSERVER: ONLY show rooms they're a member of (no additional rooms)
+    // For DEMO_OBSERVER: Show all PUBLIC rooms (for demo visibility)
     // For non-admins: also include PUBLIC rooms matching their department that they're not members of
     // For admins: also include all PUBLIC rooms they're not members of
     if (isDemoObserver) {
-      // DEMO_OBSERVER: Only return rooms they're explicitly a member of
-      const roomTypeSummary = 'DM and TICKET excluded (DEMO_OBSERVER - memberships only)'
-      console.log('GET /api/chat/rooms - Found', rooms.length, 'rooms for DEMO_OBSERVER', session.user.id, `(${roomTypeSummary})`)
+      // DEMO_OBSERVER: Show all PUBLIC rooms (like home page) + rooms they're a member of
+      const memberRoomIds = new Set(rooms.map((r) => r.id))
+      
+      // Fetch all PUBLIC rooms (DEMO_OBSERVER should see all for demo purposes)
+      const additionalRooms = await prisma.room.findMany({
+        where: {
+          type: 'PUBLIC',
+          isPrivate: false,
+          id: {
+            notIn: Array.from(memberRoomIds),
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          title: true,
+          description: true,
+          tags: true,
+          type: true,
+          isPrivate: true,
+          department: true,
+          createdAt: true,
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+          _count: {
+            select: {
+              members: true,
+              messages: true,
+            },
+          },
+          messages: {
+            take: 1,
+            orderBy: {
+              createdAt: 'desc',
+            },
+            select: {
+              id: true,
+              content: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      })
+
+      // Add additional PUBLIC rooms with null role (not a member yet, but visible for demo)
+      const allRooms = [
+        ...rooms,
+        ...additionalRooms.map((r) => ({
+          ...r,
+          role: null,
+          lastMessage: r.messages[0] || null,
+          otherUser: null,
+        })),
+      ]
+
+      const roomTypeSummary = 'All PUBLIC rooms (DEMO_OBSERVER - demo visibility)'
+      console.log('GET /api/chat/rooms - Found', allRooms.length, 'rooms for DEMO_OBSERVER', session.user.id, `(${roomTypeSummary})`)
       
       return Response.json({
         ok: true,
         code: 'SUCCESS',
         message: 'Rooms retrieved successfully',
         data: {
-          rooms: rooms,
+          rooms: allRooms,
         },
       })
     }
