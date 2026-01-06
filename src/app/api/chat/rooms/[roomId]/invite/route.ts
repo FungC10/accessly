@@ -79,6 +79,15 @@ export async function POST(
       }, { status: 404 })
     }
 
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (inviterUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
     const isAdmin = inviterUser.role === Role.ADMIN
 
     const inviterMembership = await prisma.roomMember.findFirst({

@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "Role" ADD VALUE 'DEMO_OBSERVER';
+

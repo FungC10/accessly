@@ -46,7 +46,7 @@ export async function PATCH(
     // Verify the user exists in DB
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (!dbUser) {
@@ -55,6 +55,15 @@ export async function PATCH(
         code: 'USER_NOT_FOUND',
         message: 'User not found in database',
       }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
     }
 
     // Get the message
@@ -173,7 +182,7 @@ export async function DELETE(
     // Verify the user exists in DB
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (!dbUser) {
@@ -182,6 +191,15 @@ export async function DELETE(
         code: 'USER_NOT_FOUND',
         message: 'User not found in database',
       }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
     }
 
     // Get the message

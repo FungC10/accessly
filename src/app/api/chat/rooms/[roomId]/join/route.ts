@@ -30,7 +30,7 @@ export async function POST(
     // Verify the user exists in DB and get their actual ID
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true, email: true },
+      select: { id: true, email: true, role: true },
     })
 
     if (!dbUser) {
@@ -40,6 +40,15 @@ export async function POST(
         code: 'USER_NOT_FOUND',
         message: 'User not found in database',
       }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
     }
 
     // Use DB user ID (source of truth)

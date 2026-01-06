@@ -44,6 +44,25 @@ async function main() {
   console.log('✅ Created regular user:', user.email)
   console.log('   Password: user123')
 
+  // Create demo observer user (read-only for public demo)
+  const demoObserverPassword = await bcrypt.hash('demo123', 10)
+  const demoObserver = await prisma.user.upsert({
+    where: { email: 'demo@accessly.com' },
+    update: {
+      password: demoObserverPassword, // Update password if user exists
+    },
+    create: {
+      email: 'demo@accessly.com',
+      name: 'Demo Observer',
+      emailVerified: new Date(),
+      role: Role.DEMO_OBSERVER,
+      password: demoObserverPassword,
+    },
+  })
+  console.log('✅ Created demo observer user:', demoObserver.email)
+  console.log('   Password: demo123')
+  console.log('   Role: DEMO_OBSERVER (read-only)')
+
   // Create public rooms with tags
   const generalRoom = await prisma.room.upsert({
     where: { name: '#general' },

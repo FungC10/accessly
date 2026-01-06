@@ -999,6 +999,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
     return <div className="text-slate-400">Please sign in to chat</div>
   }
 
+  const isDemoObserver = session.user.role === 'DEMO_OBSERVER'
+
   return (
     <div className="flex h-full bg-slate-950 min-h-0">
       {/* Main Chat Area */}
@@ -1173,18 +1175,19 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
                     handleKeyPress(e as any)
                   }
                 }}
-                placeholder={replyingTo ? "Type your reply..." : "Type a message..."}
-                disabled={isLoading}
+                placeholder={isDemoObserver ? "Demo mode: Read-only" : (replyingTo ? "Type your reply..." : "Type a message...")}
+                disabled={isLoading || isDemoObserver}
                 className={`flex-1 min-w-0 px-4 py-2 bg-slate-800 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 resize-none ${
                   replyingTo ? 'rounded-b-lg rounded-t-none' : 'rounded-lg'
-                }`}
+                } ${isDemoObserver ? 'opacity-50 cursor-not-allowed' : ''}`}
                 rows={2}
               />
             </div>
             <button
               onClick={sendMessage}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || !input.trim() || isDemoObserver}
               className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg transition-colors flex-shrink-0 self-end"
+              title={isDemoObserver ? "Demo mode: Read-only" : undefined}
             >
               Send
             </button>

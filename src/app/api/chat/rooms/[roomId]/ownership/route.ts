@@ -40,6 +40,15 @@ export async function POST(
       return Response.json({ ok: false, code: 'USER_NOT_FOUND' }, { status: 404 })
     }
 
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (currentUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
     const isAdmin = currentUser.role === Role.ADMIN
 
     // Get room type to check if this is an ISSUE (TICKET) room

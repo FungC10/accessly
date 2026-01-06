@@ -31,6 +31,7 @@ const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
 export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, onReply, onToggleThread, isReply = false, replyCount = 0 }: MessageItemProps) {
   const { data: session } = useSession()
+  const isDemoObserver = session?.user?.role === 'DEMO_OBSERVER'
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(message.content)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -67,8 +68,8 @@ export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, o
   const createdAt = new Date(message.createdAt)
   const timeAgo = formatTimeAgo(createdAt)
 
-  // Check if message can be edited (within 10 minutes)
-  const canEdit = isOwn && !isDeleted && !isEditing
+  // Check if message can be edited (within 10 minutes, and not demo observer)
+  const canEdit = isOwn && !isDeleted && !isEditing && !isDemoObserver
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
   const withinEditWindow = createdAt >= tenMinutesAgo
 
@@ -127,8 +128,8 @@ export function MessageItem({ message, currentUserId, roomId, onMessageUpdate, o
   }
 
   const handleReaction = async (emoji: string) => {
-    // Prevent reacting to own messages
-    if (isOwn) return
+    // Prevent reacting to own messages or if demo observer
+    if (isOwn || isDemoObserver) return
 
     try {
       const response = await fetch(`/api/chat/messages/${message.id}/reactions`, {
@@ -359,13 +360,14 @@ Text Preview: ${result.textSnippet.slice(0, 200)}
                 
                 return (
                   <div className={`absolute ${offsetClass} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
-                    {/* Reaction button - only for non-own messages */}
+                    {/* Reaction button - only for non-own messages, disabled for demo observer */}
                     {showEmojiButton && (
                       <div className="relative">
                         <button
                           onClick={() => setShowReactions(!showReactions)}
-                          className="p-1 text-xs bg-slate-700 hover:bg-slate-600 rounded"
-                          title="Add reaction"
+                          disabled={isDemoObserver}
+                          className={`p-1 text-xs bg-slate-700 hover:bg-slate-600 rounded ${isDemoObserver ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          title={isDemoObserver ? "Demo mode: Read-only" : "Add reaction"}
                         >
                           😀
                         </button>

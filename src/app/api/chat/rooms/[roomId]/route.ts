@@ -300,6 +300,15 @@ export async function PATCH(
       }, { status: 404 })
     }
 
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
     const isAdmin = dbUser.role === Role.ADMIN
 
     // Check if user is OWNER or ADMIN

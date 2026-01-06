@@ -35,7 +35,24 @@ export async function PATCH(
       select: { id: true, role: true },
     })
 
-    if (!dbUser || dbUser.role !== Role.ADMIN) {
+    if (!dbUser) {
+      return Response.json({
+        ok: false,
+        code: 'USER_NOT_FOUND',
+        message: 'User not found in database',
+      }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
+    if (dbUser.role !== Role.ADMIN) {
       return Response.json({
         ok: false,
         code: 'FORBIDDEN',

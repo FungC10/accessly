@@ -4,6 +4,7 @@ import { AuthProvider } from '@/components/AuthProvider'
 import { Navbar } from '@/components/Navbar'
 import { ToasterWrapper } from '@/components/ToasterWrapper'
 import { ErrorBoundaryWrapper } from '@/components/common/ErrorBoundaryWrapper'
+import { DemoModeBanner } from '@/components/common/DemoModeBanner'
 import '@/styles/globals.css'
 
 // Sentry client config is automatically loaded by Next.js from root (sentry.client.config.ts)
@@ -28,6 +29,7 @@ export default function RootLayout({
           <ErrorBoundaryWrapper errorBoundaryName="RootLayout">
             <div className="flex flex-col h-screen">
               <Navbar />
+              <DemoModeBanner />
               <main className="flex-1 min-h-0 overflow-y-auto" role="main">
                 {children}
               </main>

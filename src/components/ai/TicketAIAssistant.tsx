@@ -28,6 +28,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
   const [error, setError] = useState<string | null>(null)
   const [roomType, setRoomType] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [isDemoObserver, setIsDemoObserver] = useState<boolean | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const currentRoomIdRef = useRef<string>(roomId)
 
@@ -55,9 +56,10 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
       setIsLoading(false)
       
       try {
-        // Check if user is admin (from session)
+        // Check if user is admin or demo observer (from session)
         const userRole = session?.user?.role
         setIsAdmin(userRole === 'ADMIN')
+        setIsDemoObserver(userRole === 'DEMO_OBSERVER')
         
         // Check room type
         const roomRes = await fetch(`/api/chat/rooms/${roomId}`)
@@ -81,8 +83,8 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // PEEK: Get existing insights without updating (read-only)
   const peekInsights = useCallback(async () => {
-    // Guard: only fetch if it's a TICKET room and user is admin
-    if (roomType !== 'TICKET' || isAdmin !== true) {
+    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
+    if (roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
       return
     }
 
@@ -215,7 +217,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // PEEK insights on mount and when room changes (read-only, no update)
   useEffect(() => {
-    if (roomType === 'TICKET' && isAdmin === true) {
+    if (roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
       peekInsights()
     } else {
       // Clear insights when switching away from ticket room
@@ -224,10 +226,10 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
       setError(null)
       setIsLoading(false)
     }
-  }, [roomId, roomType, isAdmin, peekInsights])
+  }, [roomId, roomType, isAdmin, isDemoObserver, peekInsights])
 
-  // Don't render if not a TICKET room or user is not admin
-  if (roomType !== 'TICKET' || isAdmin !== true) {
+  // Don't render if not a TICKET room or user is not admin/demo observer
+  if (roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
     return null
   }
 
@@ -304,7 +306,9 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
               </div>
               <button
                 onClick={refreshInsights}
-                className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors"
+                disabled={isDemoObserver === true}
+                title={isDemoObserver === true ? "Demo mode: Read-only" : undefined}
+                className={`w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors ${isDemoObserver === true ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Retry
               </button>
@@ -320,7 +324,9 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
                 </p>
                 <button
                   onClick={refreshInsights}
-                  className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  disabled={isDemoObserver === true}
+                  title={isDemoObserver === true ? "Demo mode: Read-only" : undefined}
+                  className={`w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors ${isDemoObserver === true ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Generate Insights
                 </button>
@@ -457,7 +463,9 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
               {/* Refresh Button */}
               <button
                 onClick={refreshInsights}
-                className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                disabled={isDemoObserver === true}
+                title={isDemoObserver === true ? "Demo mode: Read-only" : undefined}
+                className={`w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${isDemoObserver === true ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <svg
                   className="w-4 h-4"

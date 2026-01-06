@@ -34,6 +34,15 @@ export async function DELETE(
       return Response.json({ ok: false, code: 'USER_NOT_FOUND' }, { status: 404 })
     }
 
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (currentUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
     const isAdmin = currentUser.role === Role.ADMIN
 
     // Check if current user is owner or admin (both can remove members)
@@ -136,6 +145,15 @@ export async function PATCH(
 
     if (!currentUser) {
       return Response.json({ ok: false, code: 'USER_NOT_FOUND' }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (currentUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
     }
 
     const isAdmin = currentUser.role === Role.ADMIN

@@ -121,6 +121,7 @@ model Message {
 enum Role {
   USER
   ADMIN
+  DEMO_OBSERVER
 }
 
 enum RoomRole {

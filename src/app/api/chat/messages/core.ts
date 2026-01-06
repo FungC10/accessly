@@ -55,6 +55,14 @@ export async function handlePostMessageCore(req: Request): Promise<MessageCoreRe
     }
   }
 
+  // Check if user is DEMO_OBSERVER (read-only)
+  if (dbUser.role === 'DEMO_OBSERVER') {
+    return {
+      status: 403,
+      body: { ok: false, code: 'DEMO_MODE', message: 'Demo mode: This action is disabled' },
+    }
+  }
+
   const userId = dbUser.id
   const isAdmin = dbUser.role === Role.ADMIN
 

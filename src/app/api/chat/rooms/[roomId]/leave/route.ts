@@ -24,7 +24,31 @@ export async function POST(
     }
 
     const { roomId } = await params
-    const userId = session.user.id
+
+    // Verify the user exists in DB and get their role
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { id: true, role: true },
+    })
+
+    if (!dbUser) {
+      return Response.json({
+        ok: false,
+        code: 'USER_NOT_FOUND',
+        message: 'User not found in database',
+      }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
+    const userId = dbUser.id
 
     const room = await prisma.room.findUnique({
       where: { id: roomId },

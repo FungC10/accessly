@@ -367,7 +367,7 @@ export async function POST(request: Request) {
     // Get user from database
     const dbUser = await prisma.user.findUnique({
       where: { email: session.user.email || '' },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (!dbUser) {
@@ -376,6 +376,15 @@ export async function POST(request: Request) {
         code: 'NOT_FOUND',
         message: 'User not found',
       }, { status: 404 })
+    }
+
+    // Check if user is DEMO_OBSERVER (read-only)
+    if (dbUser.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
     }
 
     // Block external customers from creating rooms

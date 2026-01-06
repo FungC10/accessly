@@ -21,6 +21,20 @@ export async function POST(
       return Response.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
     }
 
+    // Check if user is DEMO_OBSERVER (read-only)
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { role: true },
+    })
+
+    if (dbUser?.role === 'DEMO_OBSERVER') {
+      return Response.json({
+        ok: false,
+        code: 'DEMO_MODE',
+        message: 'Demo mode: This action is disabled',
+      }, { status: 403 })
+    }
+
     assertRole(session, Role.ADMIN)
 
     const { userId } = await params
