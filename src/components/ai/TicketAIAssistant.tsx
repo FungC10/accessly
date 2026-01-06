@@ -28,6 +28,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
   const [error, setError] = useState<string | null>(null)
   const [roomType, setRoomType] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const currentRoomIdRef = useRef<string>(roomId)
 
   // Clear state immediately when roomId changes (before API calls)
@@ -229,8 +230,6 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
   if (roomType !== 'TICKET' || isAdmin !== true) {
     return null
   }
-
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   const handleCopySuggestion = (text: string, index: number) => {
     navigator.clipboard.writeText(text).then(() => {
