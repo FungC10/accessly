@@ -195,8 +195,18 @@ export class TicketAIService {
 
     const newMessageCount = newMessages.length
 
+    // Ensure backward compatibility: add missing fields if old insights don't have them
+    const insights: AIInsights = {
+      ...state.lastInsights,
+      summarySource: state.lastInsights.summarySource || 'deterministic',
+      escalation: {
+        ...state.lastInsights.escalation,
+        // severity might be missing in old insights
+      },
+    }
+
     return {
-      insights: state.lastInsights,
+      insights,
       provider: state.provider,
       hasNewMessages: newMessageCount > 0,
       newMessageCount,

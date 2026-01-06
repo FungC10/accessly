@@ -122,7 +122,16 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
         setInsights(null)
         setProvider(null)
       } else {
-        setInsights(data.data)
+        // Ensure backward compatibility: add missing fields if old insights don't have them
+        const insights: AIInsights = {
+          ...data.data,
+          summarySource: data.data.summarySource || 'deterministic',
+          escalation: {
+            ...data.data.escalation,
+            // severity is optional, so it's fine if it's missing
+          },
+        }
+        setInsights(insights)
         setProvider(data.provider || null)
       }
     } catch (err: any) {
@@ -178,7 +187,16 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
         return
       }
 
-      setInsights(data.data)
+      // Ensure backward compatibility: add missing fields if old insights don't have them
+      const insights: AIInsights = {
+        ...data.data,
+        summarySource: data.data.summarySource || 'deterministic',
+        escalation: {
+          ...data.data.escalation,
+          // severity is optional, so it's fine if it's missing
+        },
+      }
+      setInsights(insights)
       setProvider(data.provider || null)
     } catch (err: any) {
       // Only set error if we're still in a ticket room and on the same room
@@ -411,6 +429,11 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
                   <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
                     <p className="text-sm text-yellow-400 font-medium mb-1">
                       Escalation Recommended
+                      {insights.escalation.severity && (
+                        <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-yellow-600/30 text-yellow-300 rounded border border-yellow-500/50">
+                          {insights.escalation.severity}
+                        </span>
+                      )}
                     </p>
                     {insights.escalation.department && (
                       <p className="text-xs text-slate-300 mb-1">
