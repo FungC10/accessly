@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { HomePageClient } from '@/components/rooms/HomePageClient'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { RoomType } from '@prisma/client'
+import { RoomType, Role } from '@prisma/client'
 import { isExternalCustomer } from '@/lib/user-utils'
 
 export const dynamic = 'force-dynamic'
@@ -126,8 +126,8 @@ export default async function Home({
 
   // For DEMO_OBSERVER: ONLY show rooms they're a member of (no additional rooms)
   // For other users: also include PUBLIC rooms they're not a member of
-  const isDemoObserver = dbUser.role === 'DEMO_OBSERVER'
-  const isAdmin = dbUser.role === 'ADMIN'
+  const isDemoObserver = dbUser.role === ('DEMO_OBSERVER' as Role)
+  const isAdmin = dbUser.role === Role.ADMIN
   
   let additionalRooms: any[] = []
   if (!isDemoObserver) {
@@ -195,6 +195,7 @@ export default async function Home({
       },
     },
   })
+  }
 
   // Add these rooms with null role (not a member yet, but visible due to department match or admin status)
   myRooms = [
