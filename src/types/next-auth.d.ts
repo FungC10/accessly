@@ -24,5 +24,8 @@ declare module 'next-auth/jwt' {
     role?: Role
     // sub is already part of JWT standard, but we ensure it's typed
     sub?: string
+    image?: string | null
+    name?: string | null
+    email?: string | null
   }
 }

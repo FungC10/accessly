@@ -153,8 +153,8 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // REFRESH: Generate/update insights (write operation)
   const refreshInsights = useCallback(async () => {
-    // Guard: only fetch if it's a TICKET room and user is admin
-    if (roomType !== 'TICKET' || isAdmin !== true) {
+    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
+    if (roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
       return
     }
 
@@ -184,7 +184,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
       if (!response.ok || !data.ok) {
         // Only throw if we're still on a ticket room
-        if (roomType === 'TICKET' && isAdmin === true) {
+        if (roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
           throw new Error(data.message || 'Failed to refresh AI insights')
         }
         return
@@ -203,7 +203,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
       setProvider(data.provider || null)
     } catch (err: any) {
       // Only set error if we're still in a ticket room and on the same room
-      if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && isAdmin === true) {
+      if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
         console.error('Error refreshing AI insights:', err)
         setError(err.message || 'Failed to refresh AI insights')
       }
@@ -213,7 +213,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
         setIsLoading(false)
       }
     }
-  }, [roomId, roomType, isAdmin])
+  }, [roomId, roomType, isAdmin, isDemoObserver])
 
   // PEEK insights on mount and when room changes (read-only, no update)
   useEffect(() => {
