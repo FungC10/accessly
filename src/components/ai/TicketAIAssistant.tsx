@@ -243,7 +243,7 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   return (
     <div className={`bg-slate-900 border-l border-slate-800 flex flex-col h-full transition-all duration-300 ${
-      isExpanded ? 'w-80' : 'w-12'
+      isExpanded ? 'w-[22rem]' : 'w-12'
     } flex-shrink-0`}>
       {/* Collapse/Expand Toggle */}
       <div className="p-2 border-b border-slate-800 flex items-center justify-between">

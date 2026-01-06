@@ -538,7 +538,7 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
   return (
     <div className="h-full bg-slate-950 text-white flex overflow-hidden">
       {/* Room Sidebar - Show for all users (external customers see their tickets) */}
-      <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full flex-shrink-0">
+      <div className="w-[19.2rem] bg-slate-900 border-r border-slate-800 flex flex-col h-full flex-shrink-0">
         <div className="p-4 border-b border-slate-800 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">
