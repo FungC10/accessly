@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { RoomCard } from './RoomCard'
 import { RoomFilters } from './RoomFilters'
@@ -49,6 +49,8 @@ interface HomePageClientProps {
   userRole?: 'USER' | 'ADMIN'
 }
 
+type Filters = { q: string; tags: string[]; sort: string }
+
 export function HomePageClient({
   initialRooms,
   availableTags,
@@ -56,10 +58,38 @@ export function HomePageClient({
   userRole = 'USER',
 }: HomePageClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  
+
   const [allRooms] = useState<Room[]>(initialRooms)
-  const [filters, setFilters] = useState(initialFilters)
+  const [filters, setFilters] = useState<Filters>({
+    q: initialFilters.q,
+    tags: initialFilters.tag ? [initialFilters.tag] : [],
+    sort: initialFilters.sort || 'active',
+  })
+
+  // Keep local state in sync with URL (supports multi-select tags via ?tags=a,b)
+  useEffect(() => {
+    const q = searchParams.get('q') || ''
+    const sort = searchParams.get('sort') || 'active'
+
+    const tagsParam = searchParams.get('tags')
+    const legacyTag = searchParams.get('tag')
+    const tags = tagsParam
+      ? Array.from(new Set(tagsParam.split(',').map((t) => t.trim()).filter(Boolean)))
+      : legacyTag
+        ? [legacyTag]
+        : []
+
+    setFilters((prev) => {
+      const same =
+        prev.q === q &&
+        prev.sort === sort &&
+        prev.tags.length === tags.length &&
+        prev.tags.every((t, i) => t === tags[i])
+      return same ? prev : { q, tags, sort }
+    })
+  }, [searchParams])
 
   // Client-side filtering
   const filteredRooms = allRooms.filter((room) => {
@@ -73,24 +103,29 @@ export function HomePageClient({
       if (!matchesSearch) return false
     }
 
-    // Tag filter
-    if (filters.tag && room.tags) {
-      if (!room.tags.includes(filters.tag)) return false
+    // Tag filter (multi-select AND)
+    if (filters.tags.length > 0) {
+      const roomTags = room.tags || []
+      if (!filters.tags.every((t) => roomTags.includes(t))) return false
     }
 
     return true
   })
 
-  // Compute available tags based on filtered rooms (when a tag is selected, only show tags that co-occur with it)
-  const availableTagsForFilter = filters.tag
-    ? [filters.tag, ...Array.from(
-        new Set(
-          filteredRooms
-            .flatMap((r) => r.tags || [])
-            .filter((t) => t.length > 0 && t !== filters.tag)
-        )
-      )].sort()
-    : availableTags
+  // Faceted tags: when tags are selected, only show tags that exist on currently matching rooms
+  const availableTagsForFilter =
+    filters.tags.length > 0
+      ? [
+          ...filters.tags,
+          ...Array.from(
+            new Set(
+              filteredRooms
+                .flatMap((r) => r.tags || [])
+                .filter((t) => t.length > 0 && !filters.tags.includes(t))
+            )
+          ).sort(),
+        ]
+      : availableTags
 
   // Sort rooms
   const sortedRooms = [...filteredRooms].sort((a, b) => {
@@ -105,15 +140,17 @@ export function HomePageClient({
     }
   })
 
-  const handleFilterChange = (newFilters: { q: string; tag: string; sort: string }) => {
+  const handleFilterChange = (newFilters: Filters) => {
     startTransition(() => {
       setFilters(newFilters)
-      // Update URL without reloading
-      const searchParams = new URLSearchParams()
-      if (newFilters.q) searchParams.set('q', newFilters.q)
-      if (newFilters.tag) searchParams.set('tag', newFilters.tag)
-      if (newFilters.sort) searchParams.set('sort', newFilters.sort)
-      router.push(`/?${searchParams.toString()}`, { scroll: false })
+
+      const sp = new URLSearchParams()
+      if (newFilters.q) sp.set('q', newFilters.q)
+      if (newFilters.tags.length > 0) sp.set('tags', newFilters.tags.join(','))
+      if (newFilters.sort) sp.set('sort', newFilters.sort)
+
+      // Do not set legacy `tag` when multi-select is active.
+      router.push(`/?${sp.toString()}`, { scroll: false })
     })
   }
 
@@ -127,7 +164,6 @@ export function HomePageClient({
             <p className="text-slate-400 mt-1">Enterprise collaboration platform</p>
           </div>
           <div className="flex items-center gap-4">
-            {/* Support CTA removed - internal employees don't need it */}
             {/* Tickets link - visible only for admins */}
             {userRole === 'ADMIN' && (
               <Link
@@ -148,17 +184,10 @@ export function HomePageClient({
           </div>
 
           {/* Filters */}
-          <RoomFilters
-            availableTags={availableTagsForFilter}
-            onFilterChange={handleFilterChange}
-          />
+          <RoomFilters availableTags={availableTagsForFilter} onFilterChange={handleFilterChange} />
 
           {/* Loading State */}
-          {isPending && (
-            <div className="text-center py-8 text-slate-400">
-              Loading...
-            </div>
-          )}
+          {isPending && <div className="text-center py-8 text-slate-400">Loading...</div>}
 
           {/* Rooms Grid */}
           {!isPending && (
@@ -182,4 +211,3 @@ export function HomePageClient({
     </div>
   )
 }
-
