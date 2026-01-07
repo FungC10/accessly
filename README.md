@@ -10,9 +10,9 @@ This project demonstrates my ability to design and build a real-world SaaS produ
 - Internal issue management with threaded conversations  
 - Role-based access control (admin, user)  
 - Full-text search, observability tools, and audit logging  
-- Complete SSR + client-side interactivity using Next.js 15
+- Complete SSR + client-side interactivity using Next.js (App Router)
 
-For a quick demonstration, see **DEMO_SCRIPT.md** — a 5–7 minute walkthrough I use in interviews.
+For a quick demonstration, see [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) — a 5–7 minute walkthrough I use in interviews.
 
 ---
 
@@ -25,7 +25,7 @@ SolaceDesk is an internal helpdesk workspace for a single company. Internal team
 
 Enterprise-grade realtime chat and helpdesk platform with role-based authentication, threaded conversations, ticket support, full-text search, observability dashboard, and comprehensive audit logging.
 
-Built with Next.js 15, TypeScript, Tailwind CSS, NextAuth, Prisma, PostgreSQL, and Socket.io.
+Built with Next.js (App Router), TypeScript, Tailwind CSS, NextAuth (Auth.js), Prisma, PostgreSQL, and Socket.io.
 
 ## 🚀 Quick Start (One-Click Demo)
 
@@ -112,7 +112,7 @@ SolaceDesk provides a single place for internal teams to collaborate and manage 
 - **Server Layer**: Next.js API routes, Socket.io server, Prisma ORM
 - **Database Layer**: PostgreSQL with full-text search capabilities
 
-See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for detailed explanations.
+See [ARCHITECTURE_EXPLAINED.md](./ARCHITECTURE_EXPLAINED.md) for a deeper walkthrough.
 
 ### Data Flow
 
@@ -514,7 +514,7 @@ Accessly requires a **long-lived Node.js process** for real-time features:
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL with Prisma ORM
@@ -821,9 +821,9 @@ docker run -p 3000:3000 \
    pnpm start
    ```
 
-4. **Health Check Endpoint**:
-   - Use `/api/status` for health checks
-   - Returns 200 OK when database is connected
+4. **Health Check Endpoints**:
+   - Use `/status` for load balancers (always returns 200 with an `ok` field)
+   - Use `/api/health` for monitoring (returns 200/503 based on DB/Redis)
 
 5. **Database Migrations**:
    ```bash
@@ -836,11 +836,14 @@ docker run -p 3000:3000 \
    - Scale to multiple instances behind load balancer
    - No sticky sessions needed
 
-See [docs/deploy.md](./docs/deploy.md) for detailed deployment instructions.
+See [docs/DEPLOYMENT_SIMPLE.md](./docs/DEPLOYMENT_SIMPLE.md) for deployment instructions.
 
 ## Project Structure
 
 ```
+server/
+└── index.ts               # Custom Node.js server entry (HTTP + Socket.io)
+
 src/
 ├── app/                    # Next.js App Router
 │   ├── api/               # API route handlers
@@ -940,8 +943,6 @@ src/
 │       ├── ..._add_threading/
 │       ├── ..._add_issue_support/
 │       └── ..._add_fulltext_search/
-└── server/                # Custom Node.js server entry
-    └── index.ts           # HTTP server + Socket.io setup (with telemetry)
 ```
 
 ## API Endpoints
@@ -1238,7 +1239,6 @@ Screenshots are available in the [Feature Tour](#feature-tour) section above. Al
 
 - `home-page.png` - Forum-style room discovery page
 - `chat-room.png` - Chat interface with threaded conversations
-- `tickets-page.png` - Issue management interface
 - `admin-dashboard.png` - Admin dashboard with user management
 - `telemetry-dashboard.png` - Observability dashboard with metrics
 - `search-results.png` - Search results with highlighting
@@ -1267,9 +1267,6 @@ pnpm test:watch
 
 # UI mode (interactive)
 pnpm test:ui
-
-# Coverage report
-pnpm test:coverage
 ```
 
 ### Test Structure

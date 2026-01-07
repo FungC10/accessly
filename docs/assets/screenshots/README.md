@@ -6,10 +6,11 @@ This directory contains screenshots for the Accessly feature tour.
 
 1. **home-page.png** - Forum-style home page with room discovery
 2. **chat-room.png** - Chat interface with threaded conversations
-3. **direct-messages.png** - Direct message interface
-4. **admin-dashboard.png** - Admin dashboard with user management
-5. **telemetry-dashboard.png** - Observability dashboard with metrics
-6. **search-results.png** - Search results with highlighting
+3. **admin-dashboard.png** - Admin dashboard with user management
+4. **telemetry-dashboard.png** - Observability dashboard with metrics
+5. **search-results.png** - Search results with highlighting
+
+> Note: `direct-messages.png` is a legacy placeholder from an earlier iteration. Accessly no longer includes a direct-messages feature.
 
 ## Screenshot Guidelines
 
