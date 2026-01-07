@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react'
 // Role type for client component (avoid importing @prisma/client in client)
-type Role = 'USER' | 'ADMIN'
+type Role = 'USER' | 'ADMIN' | 'DEMO_OBSERVER'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SearchBar } from './SearchBar'
@@ -133,6 +133,11 @@ export function Navbar() {
   }
 
   const badgeInfo = getBadgeInfo()
+  const demoFallbackAvatar = '/avatars/demo-sophia.svg'
+  const avatarSrc =
+    session.user.role === ('DEMO_OBSERVER' as Role)
+      ? session.user.image || demoFallbackAvatar
+      : session.user.image
 
   return (
     <nav className="bg-slate-900 border-b border-slate-800" role="navigation">
@@ -185,9 +190,9 @@ export function Navbar() {
             {/* User Avatar and Info - hide name/role at lg breakpoint, show only on xl+ */}
             <div className="hidden xl:flex items-center gap-2">
               {/* User Avatar */}
-              {session.user.image && !imageError ? (
+              {avatarSrc && !imageError ? (
                 <img
-                  src={session.user.image}
+                  src={avatarSrc}
                   alt={session.user.name || 'User avatar'}
                   className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-slate-700 flex-shrink-0"
                   onError={() => setImageError(true)}
@@ -223,9 +228,9 @@ export function Navbar() {
 
             {/* Avatar only - shown on lg screens (between sm and xl) */}
             <div className="hidden lg:flex xl:hidden">
-              {session.user.image && !imageError ? (
+              {avatarSrc && !imageError ? (
                 <img
-                  src={session.user.image}
+                  src={avatarSrc}
                   alt={session.user.name || 'User avatar'}
                   className="w-7 h-7 md:w-8 md:h-8 rounded-full border-2 border-slate-700 flex-shrink-0"
                   onError={() => setImageError(true)}
@@ -241,9 +246,9 @@ export function Navbar() {
 
             {/* Mobile: Just avatar */}
             <div className="lg:hidden">
-              {session.user.image && !imageError ? (
+              {avatarSrc && !imageError ? (
                 <img
-                  src={session.user.image}
+                  src={avatarSrc}
                   alt={session.user.name || 'User avatar'}
                   className="w-7 h-7 rounded-full border-2 border-slate-700 flex-shrink-0"
                   onError={() => setImageError(true)}

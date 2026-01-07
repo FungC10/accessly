@@ -82,14 +82,6 @@ export function RoomFilters({ availableTags, onFilterChange }: RoomFiltersProps)
       <div className="flex flex-wrap items-center gap-4">
         {/* Tag Chips */}
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-          {selectedTag && (
-            <button
-              onClick={() => handleTagClick('')}
-              className="px-3 py-1.5 text-sm rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors flex-shrink-0"
-            >
-              Clear filter
-            </button>
-          )}
           {availableTags.slice(0, 10).map((tag) => (
             <button
               key={tag}
