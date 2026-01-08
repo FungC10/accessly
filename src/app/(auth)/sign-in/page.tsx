@@ -179,6 +179,13 @@ export default function SignInPage() {
             </button>
           </form>
 
+          {/* Demo Account */}
+          <div className="rounded-lg border border-slate-800 bg-slate-900/30 p-4">
+            <div className="text-sm font-semibold text-white">Demo Account (Read-only)</div>
+            <div className="mt-2 text-sm text-slate-300 whitespace-pre-line">
+              {'Email: demo@solace.com\nPassword: demo123\nRole: DEMO_OBSERVER\n\nThis account is read-only and resets daily.'}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
