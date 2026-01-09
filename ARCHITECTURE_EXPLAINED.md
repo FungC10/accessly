@@ -2,6 +2,8 @@
 
 Accessly is a **single full-stack Next.js application** (App Router) with a **custom Node.js server** to support Socket.io (long-lived WebSocket connections).
 
+“Single full-stack app” means **one deployable Node.js service** containing UI, API, and realtime server — not a monolith of unrelated domains.
+
 ## High-level layout
 
 - **UI + Routing**: `src/app/` (Next.js App Router)
@@ -23,6 +25,8 @@ Socket.io needs a persistent Node process to maintain connections, presence, and
 - Local/dev/prod server entry: `server/index.ts`
 - This is why fully serverless platforms (like Vercel) aren’t a good fit for realtime Socket.io.
 
+This architecture scales horizontally using Socket.io’s Redis adapter, but is intentionally optimized for small-to-medium internal teams rather than massive public chat workloads.
+
 ## Request / data flow
 
 ### Typical API flow
@@ -42,6 +46,12 @@ Socket.io needs a persistent Node process to maintain connections, presence, and
 
 - **Auth**: NextAuth session (server-verified) gates protected pages and API routes.
 - **RBAC**: Role and membership checks happen **server-side** in route handlers (UI is a convenience, not security).
+
+## Non-goals (by design)
+
+- No microservices: a single codebase keeps iteration fast
+- No serverless WebSocket workarounds: Socket.io uses friendly Node primitives
+- No CQRS/event sourcing: data access is synchronous and explicit
 
 ## State + performance strategy
 
