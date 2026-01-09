@@ -44,3 +44,6 @@ architecture.md
 
 # portfolio-only internal notes
 TESTING_ANALYSIS.md
+
+# private runbooks / one-off production shell commands
+PRIVATE_RUNBOOK.md
