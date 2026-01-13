@@ -671,7 +671,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                 <p className="text-sm text-slate-400 mb-2">{roomDetails.otherUser.email}</p>
               )}
               {roomDetails?.type !== 'DM' && roomDetails?.description && (
-                <p className="text-sm text-slate-400 mb-2">{roomDetails.description}</p>
+                <p className="text-sm md:text-xs lg:text-sm text-slate-400 mb-2 md:line-clamp-2 lg:line-clamp-none">{roomDetails.description}</p>
               )}
             </>
           )}

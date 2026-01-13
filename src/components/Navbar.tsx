@@ -147,9 +147,11 @@ export function Navbar() {
           <div className="flex items-center flex-shrink-0 pl-4 md:pl-6">
             <Link
               href="/"
-              className="text-lg md:text-xl font-bold text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 rounded hidden lg:block"
+              className="text-lg md:text-xl font-bold text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 rounded hover:text-cyan-200 transition-colors"
+              title="Home"
             >
-              SolaceDesk
+              <span className="hidden sm:inline">SolaceDesk</span>
+              <span className="sm:hidden">SD</span>
             </Link>
           </div>
 
@@ -164,12 +166,12 @@ export function Navbar() {
             <div className="hidden md:block w-px h-6 bg-slate-700 flex-shrink-0"></div>
 
             {/* Navigation Links - grouped with better visual treatment */}
-            <div className="hidden md:flex items-center gap-2 flex-shrink-0 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700/50">
+            <div className="hidden md:flex items-center gap-2 flex-shrink-0 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700/50 max-w-full overflow-hidden">
               {/* System Dashboard Link - visible only for admins */}
               {session.user.role === 'ADMIN' && (
                 <Link
                   href="/admin"
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-slate-900 font-medium text-sm whitespace-nowrap"
+                  className="px-3 py-1.5 md:px-2 md:py-1 lg:px-3 lg:py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-slate-900 font-medium text-sm md:text-xs lg:text-sm whitespace-nowrap flex-shrink-0"
                 >
                   Dashboard
                 </Link>
@@ -178,7 +180,7 @@ export function Navbar() {
               {/* Issues Link - visible to all authenticated users */}
               <Link
                 href="/issues"
-                className="px-3 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-sm whitespace-nowrap"
+                className="px-3 py-1.5 md:px-2 md:py-1 lg:px-3 lg:py-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-sm md:text-xs lg:text-sm whitespace-nowrap flex-shrink-0"
               >
                 Issues
               </Link>
