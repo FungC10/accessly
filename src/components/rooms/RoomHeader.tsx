@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { RoomRole } from '@prisma/client'
@@ -85,6 +85,10 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   const [selectedUser, setSelectedUser] = useState<any | null>(null)
   const [selectedInviteUser, setSelectedInviteUser] = useState<any | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
 
   // Fetch current user's database ID to match with user IDs from API
   useEffect(() => {
@@ -611,10 +615,86 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
     })
   }, [filteredInviteUsers, currentUserId, session?.user?.id, session?.user?.email])
 
+  // Calculate menu position function
+  const calculateMenuPosition = () => {
+    if (!menuButtonRef.current) return {}
+    
+    const buttonRect = menuButtonRef.current.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const padding = 16 // 1rem = 16px
+    
+    // Estimate menu width based on longest text (Add Participant is longest)
+    // Approximate: text width + padding (px-4 = 16px each side) + some buffer
+    const estimatedMenuWidth = 180 // Conservative estimate for content width
+    
+    // Calculate right position: distance from viewport's right edge to button's right edge
+    const spaceOnRight = viewportWidth - buttonRect.right
+    
+    // Default: align menu's right edge to button's right edge
+    let right = viewportWidth - buttonRect.right
+    
+    // If menu would overflow, ensure minimum padding from viewport edge
+    if (estimatedMenuWidth > spaceOnRight + padding) {
+      // Menu would overflow, position it with minimum padding
+      right = padding
+    }
+    
+    return {
+      position: 'fixed' as const,
+      right: `${right}px`,
+      top: `${buttonRect.bottom + 8}px`, // Increased spacing between button and menu
+    }
+  }
+
+  // Calculate position when menu opens (useLayoutEffect to prevent flash)
+  useLayoutEffect(() => {
+    if (showMenu && menuButtonRef.current && menuRef.current) {
+      const buttonRect = menuButtonRef.current.getBoundingClientRect()
+      const menuRect = menuRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const padding = 16 // 1rem = 16px
+      
+      // Use actual menu width
+      const menuWidth = menuRect.width
+      const spaceOnRight = viewportWidth - buttonRect.right
+      
+      // Default: align menu's right edge to button's right edge
+      let right = viewportWidth - buttonRect.right
+      
+      // If menu would overflow, ensure minimum padding from viewport edge
+      if (menuWidth > spaceOnRight + padding) {
+        right = padding
+      }
+      
+      setMenuStyle({
+        position: 'fixed',
+        right: `${right}px`,
+        top: `${buttonRect.bottom + 8}px`, // Increased spacing between button and menu
+      })
+    } else if (!showMenu) {
+      setMenuStyle({})
+    }
+  }, [showMenu])
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (showMenu && !target.closest('.room-header-menu')) {
+        setShowMenu(false)
+      }
+    }
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showMenu])
+
   return (
     <div className="px-6 py-4 border-b border-slate-800 flex-shrink-0">
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1">
+      <div className="flex items-start justify-between mb-2 gap-4">
+        <div className="flex-1 min-w-[200px]">
           {isEditing ? (
             <form onSubmit={handleEditSubmit} className="space-y-3">
               <input
@@ -662,61 +742,112 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
                   <img
                     src={roomDetails.otherUser.image}
                     alt={displayName}
-                    className="w-8 h-8 rounded-full"
+                    className="w-8 h-8 rounded-full flex-shrink-0"
                   />
                 )}
-                <h2 className="text-xl font-semibold flex-1">{displayName}</h2>
+                <h2 className="text-xl font-semibold min-w-0">{displayName}</h2>
               </div>
               {roomDetails?.type === 'DM' && roomDetails?.otherUser?.email && (
-                <p className="text-sm text-slate-400 mb-2">{roomDetails.otherUser.email}</p>
+                <p className="text-sm text-slate-400 mb-2 truncate">{roomDetails.otherUser.email}</p>
               )}
               {roomDetails?.type !== 'DM' && roomDetails?.description && (
-                <p className="text-sm md:text-xs lg:text-sm text-slate-400 mb-2 md:line-clamp-2 lg:line-clamp-none">{roomDetails.description}</p>
+                <p className="text-sm md:text-xs lg:text-sm text-slate-400 mb-2 line-clamp-2">{roomDetails.description}</p>
               )}
             </>
           )}
         </div>
-        <div className="flex items-center gap-2 ml-4">
-          {canEdit && !isEditing && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Always show menu button */}
+          <div className="relative room-header-menu">
             <button
-              onClick={() => setIsEditing(true)}
+              ref={menuButtonRef}
+              onClick={() => {
+                if (!showMenu) {
+                  // Calculate position before showing menu to prevent flash
+                  const position = calculateMenuPosition()
+                  setMenuStyle(position)
+                }
+                setShowMenu(!showMenu)
+              }}
               className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
-              title="Edit room"
+              title="More options"
             >
-              ✏️
+              ⋮
             </button>
-          )}
-          {canAssign && (
-            <button
-              onClick={() => setShowAssign(!showAssign)}
-              className="px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 rounded"
-              title="Assign ticket owner (replaces current owner)"
-            >
-              👤 Assign
-            </button>
-          )}
-          {canInvite && (
-            <button
-              onClick={() => setShowInvite(!showInvite)}
-              className="px-3 py-1 text-sm bg-cyan-600 hover:bg-cyan-700 rounded"
-              title="Add participant"
-            >
-              ➕ Add Participant
-            </button>
-          )}
-          <button
-            onClick={handleExport}
-            className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
-            title="Export room"
-          >
-            📥 Export
-          </button>
+{showMenu && (
+  <div
+    ref={menuRef}
+    style={menuStyle}
+    className="
+      fixed z-50
+      bg-slate-800 border border-slate-700
+      rounded-lg shadow-lg overflow-hidden
+
+      w-max
+      max-w-[calc(100vw-1rem)]
+    "
+  >
+    {canEdit && !isEditing && (
+      <button
+        onClick={() => {
+          setIsEditing(true)
+          setShowMenu(false)
+        }}
+        className="block whitespace-nowrap text-left px-3 py-2 text-sm hover:bg-slate-700 rounded-t-lg w-fit"
+        title="Edit room"
+      >
+        ✏️ Edit
+      </button>
+    )}
+
+    {canAssign && (
+      <button
+        onClick={() => {
+          setShowAssign(!showAssign)
+          setShowMenu(false)
+        }}
+        className={`block whitespace-nowrap text-left px-3 py-2 text-sm hover:bg-slate-700 w-fit ${
+          canEdit && !isEditing ? '' : 'rounded-t-lg'
+        }`}
+        title="Assign ticket owner (replaces current owner)"
+      >
+        👤 Assign
+      </button>
+    )}
+
+    {canInvite && (
+      <button
+        onClick={() => {
+          setShowInvite(!showInvite)
+          setShowMenu(false)
+        }}
+        className="block whitespace-nowrap text-left px-3 py-2 text-sm hover:bg-slate-700 w-fit"
+        title="Add participant"
+      >
+        ➕ Add Participant
+      </button>
+    )}
+
+    <button
+      onClick={() => {
+        handleExport()
+        setShowMenu(false)
+      }}
+      className="block whitespace-nowrap text-left px-3 py-2 text-sm hover:bg-slate-700 rounded-b-lg w-fit"
+      title="Export room"
+    >
+      📥 Export
+    </button>
+  </div>
+)}
+          </div>
+          {/* Always show members button */}
           <button
             onClick={() => {
               console.log('Members button clicked, toggling showMembers:', !showMembers)
               setShowMembers(!showMembers)
             }}
-            className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded min-w-[70px] text-center"
+            className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded min-w-[70px] text-center whitespace-nowrap"
             title="View members"
           >
             👥 {roomDetails?._count?.members ?? 0}

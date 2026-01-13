@@ -163,15 +163,15 @@ export function Navbar() {
             </div>
 
             {/* Visual separator */}
-            <div className="hidden md:block w-px h-6 bg-slate-700 flex-shrink-0"></div>
+            <div className="hidden lg:block w-px h-6 bg-slate-700 flex-shrink-0"></div>
 
             {/* Navigation Links - grouped with better visual treatment */}
-            <div className="hidden md:flex items-center gap-2 flex-shrink-0 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700/50 max-w-full overflow-hidden">
+            <div className="hidden lg:flex items-center gap-2 flex-shrink-0 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700/50">
               {/* System Dashboard Link - visible only for admins */}
               {session.user.role === 'ADMIN' && (
                 <Link
                   href="/admin"
-                  className="px-3 py-1.5 md:px-2 md:py-1 lg:px-3 lg:py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-slate-900 font-medium text-sm md:text-xs lg:text-sm whitespace-nowrap flex-shrink-0"
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-slate-900 font-medium text-sm whitespace-nowrap flex-shrink-0"
                 >
                   Dashboard
                 </Link>
@@ -180,7 +180,7 @@ export function Navbar() {
               {/* Issues Link - visible to all authenticated users */}
               <Link
                 href="/issues"
-                className="px-3 py-1.5 md:px-2 md:py-1 lg:px-3 lg:py-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-sm md:text-xs lg:text-sm whitespace-nowrap flex-shrink-0"
+                className="px-3 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-900 text-sm whitespace-nowrap flex-shrink-0"
               >
                 Issues
               </Link>

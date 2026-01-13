@@ -31,10 +31,17 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
   const [isDemoObserver, setIsDemoObserver] = useState<boolean | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const currentRoomIdRef = useRef<string>(roomId)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Clear state immediately when roomId changes (before API calls)
   useEffect(() => {
     if (currentRoomIdRef.current !== roomId) {
+      // Cancel any pending API requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      
       currentRoomIdRef.current = roomId
       // Immediately clear state when room changes
       setRoomType(null)
@@ -83,18 +90,39 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // PEEK: Get existing insights without updating (read-only)
   const peekInsights = useCallback(async () => {
-    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
-    if (roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
+    // Double-check: verify we're still on the same room FIRST (before any other checks)
+    if (currentRoomIdRef.current !== roomId) {
       return
     }
 
-    // Double-check: verify we're still on the same room before making API call
+    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
+    // Also check that roomType is not null (still loading)
+    if (!roomType || roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
+      return
+    }
+
+    // Triple-check: verify we're still on the same room before making API call
     if (currentRoomIdRef.current !== roomId) {
       return
     }
 
     setIsLoading(true)
     setError(null)
+
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Final check: verify we're still on the same room and it's still a TICKET room
+    // This prevents race conditions when switching rooms
+    if (currentRoomIdRef.current !== roomId || roomType !== 'TICKET') {
+      return
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
 
     try {
       const response = await fetch('/api/ai/ticket-assistant', {
@@ -103,20 +131,26 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ roomId, action: 'peek' }),
+        signal: abortController.signal,
       })
 
       const data = await response.json()
 
-      // Check again if we're still on the same room before processing response
-      if (currentRoomIdRef.current !== roomId) {
+      // Check again if we're still on the same room and it's still a TICKET room
+      if (currentRoomIdRef.current !== roomId || roomType !== 'TICKET') {
         return
       }
 
       if (!response.ok || !data.ok) {
-        // Only throw if we're still on a ticket room
+        // Silently ignore INVALID_ROOM_TYPE errors (room type mismatch - expected when switching rooms)
+        if (data.code === 'INVALID_ROOM_TYPE') {
+          return
+        }
+        // Only throw if we're still on a ticket room and it's not a room type error
         if (roomType === 'TICKET' && isAdmin === true) {
           throw new Error(data.message || 'Failed to peek AI insights')
         }
+        // For non-TICKET rooms or when roomType is null, just return silently
         return
       }
 
@@ -138,11 +172,18 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
         setProvider(data.provider || null)
       }
     } catch (err: any) {
+      // Ignore abort errors (request was cancelled)
+      if (err.name === 'AbortError') {
+        return
+      }
+      
       // Only set error if we're still in a ticket room and on the same room
+      // Silently ignore errors for non-TICKET rooms (expected behavior)
       if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && isAdmin === true) {
         console.error('Error peeking AI insights:', err)
         setError(err.message || 'Failed to load AI insights')
       }
+      // For non-TICKET rooms, don't log errors - this is expected
     } finally {
       // Only update loading state if we're still on the same room
       if (currentRoomIdRef.current === roomId) {
@@ -153,18 +194,39 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // REFRESH: Generate/update insights (write operation)
   const refreshInsights = useCallback(async () => {
-    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
-    if (roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
+    // Double-check: verify we're still on the same room FIRST (before any other checks)
+    if (currentRoomIdRef.current !== roomId) {
       return
     }
 
-    // Double-check: verify we're still on the same room before making API call
+    // Guard: only fetch if it's a TICKET room and user is admin or demo observer
+    // Also check that roomType is not null (still loading)
+    if (!roomType || roomType !== 'TICKET' || (isAdmin !== true && isDemoObserver !== true)) {
+      return
+    }
+
+    // Triple-check: verify we're still on the same room before making API call
     if (currentRoomIdRef.current !== roomId) {
       return
     }
 
     setIsLoading(true)
     setError(null)
+
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Final check: verify we're still on the same room and it's still a TICKET room
+    // This prevents race conditions when switching rooms
+    if (currentRoomIdRef.current !== roomId || roomType !== 'TICKET') {
+      return
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
 
     try {
       const response = await fetch('/api/ai/ticket-assistant', {
@@ -173,20 +235,26 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ roomId, action: 'refresh' }),
+        signal: abortController.signal,
       })
 
       const data = await response.json()
 
-      // Check again if we're still on the same room before processing response
-      if (currentRoomIdRef.current !== roomId) {
+      // Check again if we're still on the same room and it's still a TICKET room
+      if (currentRoomIdRef.current !== roomId || roomType !== 'TICKET') {
         return
       }
 
       if (!response.ok || !data.ok) {
-        // Only throw if we're still on a ticket room
+        // Silently ignore INVALID_ROOM_TYPE errors (room type mismatch - expected when switching rooms)
+        if (data.code === 'INVALID_ROOM_TYPE') {
+          return
+        }
+        // Only throw if we're still on a ticket room and it's not a room type error
         if (roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
           throw new Error(data.message || 'Failed to refresh AI insights')
         }
+        // For non-TICKET rooms or when roomType is null, just return silently
         return
       }
 
@@ -202,11 +270,18 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
       setInsights(insights)
       setProvider(data.provider || null)
     } catch (err: any) {
+      // Ignore abort errors (request was cancelled)
+      if (err.name === 'AbortError') {
+        return
+      }
+      
       // Only set error if we're still in a ticket room and on the same room
+      // Silently ignore errors for non-TICKET rooms (expected behavior)
       if (currentRoomIdRef.current === roomId && roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
         console.error('Error refreshing AI insights:', err)
         setError(err.message || 'Failed to refresh AI insights')
       }
+      // For non-TICKET rooms, don't log errors - this is expected
     } finally {
       // Only update loading state if we're still on the same room
       if (currentRoomIdRef.current === roomId) {
@@ -217,6 +292,16 @@ export function TicketAIAssistant({ roomId }: TicketAIAssistantProps) {
 
   // PEEK insights on mount and when room changes (read-only, no update)
   useEffect(() => {
+    // Double-check that we're still on the same room before making any calls
+    if (currentRoomIdRef.current !== roomId) {
+      // Room has changed, clear state and don't make API calls
+      setInsights(null)
+      setProvider(null)
+      setError(null)
+      setIsLoading(false)
+      return
+    }
+    
     if (roomType === 'TICKET' && (isAdmin === true || isDemoObserver === true)) {
       peekInsights()
     } else {
