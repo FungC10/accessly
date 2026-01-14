@@ -17,8 +17,10 @@ import * as Sentry from '@sentry/nextjs'
 import { metricsStore } from '../src/lib/metrics'
 
 const dev = env.NODE_ENV !== 'production'
-const hostname = env.HOST
-const port = env.PORT
+// CRITICAL: Use HOSTNAME (provided by Docker/Render) or fallback to HOST, default to 0.0.0.0
+// Docker/Render sets HOSTNAME, not HOST, so we must check HOSTNAME first
+const hostname = process.env.HOSTNAME || process.env.HOST || '0.0.0.0'
+const port = Number(process.env.PORT || env.PORT || 3000)
 
 // Prepare Next.js app
 const nextApp = next({ dev, hostname, port })
@@ -211,12 +213,16 @@ async function startServer() {
     // Start HTTP server
     httpServer.listen(port, hostname, () => {
       logger.info(
-        { routeName: 'server_startup' },
+        { routeName: 'server_startup', hostname, port },
         `Server ready on http://${hostname}:${port}`
       )
       logger.info(
-        { routeName: 'server_startup' },
+        { routeName: 'server_startup', hostname, port },
         'Socket.io available at /socket.io'
+      )
+      logger.info(
+        { routeName: 'server_startup', hostname, port },
+        `Binding to hostname: ${hostname}, port: ${port}`
       )
       if (dev) {
         logger.info(

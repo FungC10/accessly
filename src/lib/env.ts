@@ -22,6 +22,8 @@ const envSchema = z.object({
   // Server configuration
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().default('0.0.0.0'),
+  // HOSTNAME is used by Docker/Render (alternative to HOST)
+  HOSTNAME: z.string().optional(),
 
   // App (optional, public)
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
@@ -61,7 +63,8 @@ function getEnv() {
       EMAIL_FROM: process.env.EMAIL_FROM,
       REDIS_URL: process.env.REDIS_URL,
       PORT: Number(process.env.PORT) || 3000,
-      HOST: process.env.HOST || '0.0.0.0',
+      HOST: process.env.HOST || process.env.HOSTNAME || '0.0.0.0',
+      HOSTNAME: process.env.HOSTNAME,
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       NODE_ENV: (process.env.NODE_ENV as 'development' | 'production' | 'test') || 'development',
       TICKET_AI_PROVIDER: process.env.TICKET_AI_PROVIDER as 'fake' | 'openai' | undefined,
@@ -82,6 +85,7 @@ function getEnv() {
     REDIS_URL: process.env.REDIS_URL,
     PORT: process.env.PORT,
     HOST: process.env.HOST,
+    HOSTNAME: process.env.HOSTNAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,
     TICKET_AI_PROVIDER: process.env.TICKET_AI_PROVIDER,
