@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { initSocket } from '@/lib/socket'
+import { getSocket } from '@/lib/socketClient'
 import { useChatStore, Message as Msg } from '@/lib/chatStore'
 import { isNearBottom, scrollToBottom, preserveScrollOnPrepend } from '@/lib/scroll'
 import { MessageItem } from './MessageItem'
@@ -88,6 +88,15 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   const isRestoringScrollRef = useRef(false) // Track if we're restoring scroll
   const isInitialFetchingRef = useRef(false) // Track if we're doing the initial fetch for this room
 
+  // Helper: Snap to bottom using scrollIntoView
+  const snapToBottom = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' })
+      })
+    })
+  }
+
   // Keep inputRef in sync with input state
   useEffect(() => {
     inputRef.current = input
@@ -140,152 +149,22 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
     }
   }, [roomId, setRoom])
 
-  // 3) Restore scroll after paint (double rAF) for cached messages
+  // 3) Restore scroll ONLY on room change - never based on messages
   useLayoutEffect(() => {
     const el = messagesContainerRef.current
     if (!el) return
 
-    // Only restore scroll when roomId changes, not on every scrollTop update
-    // First mount (prevRoomIdRef.current === null) also counts as "should restore"
-    const shouldRestore = prevRoomIdRef.current === null || prevRoomIdRef.current !== roomId
-    if (!shouldRestore) {
-      // Room hasn't changed, don't restore
-      return
+    // Only restore when room changes
+    if (prevRoomIdRef.current === roomId) return
+
+    const saved = room?.scrollTop
+    if (saved != null) {
+      el.scrollTop = saved
     }
 
-    // Save previous room's scroll one more time (safety net) BEFORE updating prevRoomIdRef
-    const previousRoomId = prevRoomIdRef.current
-    if (previousRoomId && previousRoomId !== roomId && hasInitialisedRef.current) {
-      const scrollTop = el.scrollTop
-      setRoom(previousRoomId, { scrollTop })
-      console.log('💾 Safety net: Saved scroll for previous room:', previousRoomId, 'scrollTop:', scrollTop)
-    }
+    prevRoomIdRef.current = roomId
+  }, [roomId])
 
-    // Reset initial fetch tracking when room changes
-    isInitialFetchingRef.current = false
-    hasInitialisedRef.current = false
-
-    // NOTE: Don't update prevRoomIdRef here - it will be updated after restore completes
-    // This ensures the save useLayoutEffect can still detect the room change
-
-    // If room exists in cache (even if empty), render immediately (no loader)
-    if (room) {
-      // 1) Render cached messages immediately (no loader, even if empty)
-      setIsLoadingMessages(false)
-
-      // 2) Restore scroll position (synchronously BEFORE paint to prevent flash)
-      // Check if we have a saved scroll position (including 0 for empty rooms)
-      const hasSavedScroll = room.scrollTop !== null && room.scrollTop !== undefined
-      
-      if (hasSavedScroll) {
-        // We have a saved scroll position (even if 0 for empty room)
-        // Hide container during restore to prevent flash
-        setIsRestoringScroll(true)
-        isRestoringScrollRef.current = true
-        
-        // Force a reflow to ensure layout is calculated
-        void el.offsetHeight
-        
-        // Set scroll immediately (synchronously) - 0 is valid for empty rooms
-        el.scrollTop = room.scrollTop!
-        
-        // Show container after scroll is set (double rAF to ensure layout is complete)
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (messagesContainerRef.current) {
-              // Ensure scroll position is correct
-              const savedScroll = room.scrollTop!
-              if (messagesContainerRef.current.scrollTop !== savedScroll) {
-                messagesContainerRef.current.scrollTop = savedScroll
-              }
-              // Show container (no flash - scroll is already set)
-              setIsRestoringScroll(false)
-              isRestoringScrollRef.current = false
-              hasInitialisedRef.current = true
-              // Update prevRoomIdRef after restore completes - this marks the room as "current"
-              prevRoomIdRef.current = roomId
-              console.log('✅ Restored scroll for room:', roomId, 'scrollTop:', savedScroll)
-            }
-          })
-        })
-      } else {
-        // First visit to this room (no saved scroll position)
-        // Hide container during initial scroll to prevent flash
-        setIsRestoringScroll(true)
-        isRestoringScrollRef.current = true
-        
-        if (room.messages?.length) {
-          // Has messages → wait for DOM, then snap to bottom synchronously
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (!messagesContainerRef.current) return
-              const box = messagesContainerRef.current
-              // Force reflow to ensure scrollHeight is accurate
-              void box.offsetHeight
-              // Set scroll to bottom synchronously
-              box.scrollTop = box.scrollHeight
-              // Save scroll position after setting
-              setRoom(roomId, { scrollTop: box.scrollTop })
-              // Show container (no flash - scroll is already set)
-              setIsRestoringScroll(false)
-              isRestoringScrollRef.current = false
-              hasInitialisedRef.current = true
-              // Update prevRoomIdRef after restore completes
-              prevRoomIdRef.current = roomId
-              console.log('✅ First visit: Scrolled to bottom for room:', roomId, 'scrollTop:', box.scrollTop)
-            })
-          })
-        } else {
-          // Empty room - set to top immediately and save to cache
-          el.scrollTop = 0
-          setRoom(roomId, { scrollTop: 0 }) // Save scrollTop = 0 for empty room
-          setIsRestoringScroll(false)
-          isRestoringScrollRef.current = false
-          hasInitialisedRef.current = true
-          // Update prevRoomIdRef after restore completes
-          prevRoomIdRef.current = roomId
-          console.log('✅ Empty room: Set scrollTop to 0 for room:', roomId)
-        }
-      }
-    } else {
-      // No cache → show loader on first visit only
-      setIsLoadingMessages(true)
-    }
-    // Watch only roomId and messages length, NOT scrollTop (to avoid re-running on scroll)
-  }, [roomId, room?.messages?.length, room, setRoom])
-
-  // 4.3a Handle scroll when messages first appear (for non-cached rooms)
-  useLayoutEffect(() => {
-    // Only handle scroll for rooms that just got messages
-    // Container is already hidden from fetchInitial
-    // Don't check for room existence - messages might have just arrived
-    if (!messages.length || hasInitialisedRef.current) return
-    if (!isRestoringScrollRef.current) return // Only if we're in restore mode
-    
-    const el = messagesContainerRef.current
-    if (!el || isLoadingMessages) return
-    
-    // Wait for layout, then scroll to bottom synchronously
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!messagesContainerRef.current) return
-        const box = messagesContainerRef.current
-        
-        // Force reflow to ensure scrollHeight is accurate
-        void box.offsetHeight
-        
-        // Scroll to bottom synchronously (before showing container)
-        box.scrollTop = box.scrollHeight
-        
-        // Save scroll position
-        setRoom(roomId, { scrollTop: box.scrollTop })
-        
-        // Show container (no flash - scroll is already set)
-        setIsRestoringScroll(false)
-        isRestoringScrollRef.current = false
-      })
-    })
-  }, [roomId, messages.length, room, isLoadingMessages, setRoom])
 
   // 4.3 Initial fetch if needed
   useEffect(() => {
@@ -318,30 +197,12 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   }, [roomId, session?.user?.id])
 
   // 4.4 Socket for live messages and updates (only affect current room)
+  // NOTE: Room joining is handled by ChatPageClient to avoid duplicate joins
   useEffect(() => {
     if (!session?.user?.id) return
 
-    const socket = initSocket(session.user.id)
+    const socket = getSocket(session.user.id)
     
-    // Ensure socket is connected before joining room
-    const joinRoom = () => {
-      if (socket.connected) {
-        socket.emit('room:join', { roomId, userId: session.user.id })
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('🔌 Joining room via socket:', { roomId, userId: session.user.id, socketId: socket.id })
-        }
-      } else {
-        // Wait for connection before joining
-        socket.once('connect', () => {
-          socket.emit('room:join', { roomId, userId: session.user.id })
-          if (process.env.NODE_ENV !== 'production') {
-            console.log('🔌 Joined room after connection:', { roomId, userId: session.user.id, socketId: socket.id })
-          }
-        })
-      }
-    }
-    
-    joinRoom()
 
     const handleMessageNew = (m: Msg) => {
       if (m.roomId !== roomId) return
@@ -362,21 +223,31 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       const currentMessages = useChatStore.getState().rooms[roomId]?.messages ?? []
       const exists = currentMessages.some((msg: Msg) => msg.id === m.id)
       
+      // Check scroll position BEFORE adding message (snapshot user intent)
+      const el = messagesContainerRef.current
+      const shouldStick = el ? isNearBottom(el, 120) : true
+      const wasEmptyRoom = currentMessages.length === 0
+      
+      // Check if message is from current user (they just sent it, always scroll)
+      const isOwnMessage = m.userId === currentUserId || m.userId === session.user?.id || 
+                          (m.user?.id && (m.user.id === currentUserId || m.user.id === session.user?.id))
+      
+      // ✅ If message already exists (inserted by ChatPageClient),
+      // still check if we should scroll (user was at bottom or it's their message)
       if (exists) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log('⚠️ Message already exists, skipping socket update:', m.id)
+          console.log('⚠️ Message already exists, skipping socket update but checking scroll:', m.id)
+        }
+        // Only scroll if user was at bottom or it's their own message
+        if (isOwnMessage || shouldStick || wasEmptyRoom) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              messagesEndRef.current?.scrollIntoView({ block: 'end' })
+            })
+          })
         }
         return
       }
-
-      const el = messagesContainerRef.current
-      // Check scroll position BEFORE adding message
-      const wasAtBottom = el ? isNearBottom(el, 100) : true
-      
-      // Check if message is from current user (they just sent it, always scroll)
-      // Compare with both currentUserId (DB ID) and session.user.id (session ID) to handle both cases
-      const isOwnMessage = m.userId === currentUserId || m.userId === session.user?.id || 
-                          (m.user?.id && (m.user.id === currentUserId || m.user.id === session.user?.id))
 
       upsertMessages(roomId, [m])
 
@@ -385,42 +256,11 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         toggleThread(roomId, m.parentMessageId)
       }
 
-      // Wait for DOM to update, then scroll if needed
-      // Always scroll for own messages, or if user was already at/near bottom
-      if (el && (isOwnMessage || wasAtBottom || (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId)))) {
-        // Use triple requestAnimationFrame to ensure DOM has fully updated
+      // Scroll to bottom only if user was at bottom, it's their message, or room was empty
+      if (isOwnMessage || shouldStick || wasEmptyRoom || (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId))) {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const elAfterUpdate = messagesContainerRef.current
-              if (elAfterUpdate) {
-                // For own messages: always scroll (like sender)
-                // For received messages: check if user is at bottom AFTER message is added
-                // This handles the case where there's a small gap after first message
-                if (isOwnMessage) {
-                  // Sender: always scroll to bottom
-                  elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
-                } else {
-                  // Receiver: check if at bottom after message is added (more lenient check)
-                  // Use a larger threshold (200px) to account for small gaps
-                  const isAtBottomAfter = isNearBottom(elAfterUpdate, 200)
-                  if (isAtBottomAfter || wasAtBottom) {
-                    // Scroll if they were at bottom before OR are at bottom after
-                    elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
-                  }
-                }
-                
-                // Also handle thread expansion case
-                if (m.parentMessageId && isThreadExpanded(roomId, m.parentMessageId)) {
-                  elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
-                }
-                
-                // Force a reflow to ensure the scroll position is applied
-                void elAfterUpdate.offsetHeight
-                // Save scroll position
-                setRoom(roomId, { scrollTop: elAfterUpdate.scrollTop })
-              }
-            })
+            messagesEndRef.current?.scrollIntoView({ block: 'end' })
           })
         })
       }
@@ -521,14 +361,15 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       socket.off('message:reaction', handleMessageReaction)
       socket.off('typing:start', handleTypingStart)
       socket.off('typing:stop', handleTypingStop)
-      socket.emit('room:leave', { roomId, userId: session.user.id })
+      // NOTE: Room leaving is handled by ChatPageClient to avoid duplicate operations
     }
   }, [roomId, session?.user?.id, currentUserId, upsertMessages, setRoom])
 
   // 4.5 Track user scroll → remember per-room
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!hasInitialisedRef.current) return
-    useChatStore.getState().setRoom(roomId, { scrollTop: e.currentTarget.scrollTop })
+    // Commented out to prevent scroll fights - will save on unmount/room switch only
+    // useChatStore.getState().setRoom(roomId, { scrollTop: e.currentTarget.scrollTop })
   }
 
   // 4.6 Pagination: load older (on demand or when top sentinel enters view)
@@ -741,12 +582,14 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       if (msgs.length === 0) {
         const el = messagesContainerRef.current
         if (el) {
+          console.log('SCROLL WRITE', 'roomId:', roomId, 'reason: RESTORE', new Error().stack)
           el.scrollTop = 0
           setRoom(roomId, { scrollTop: 0 })
         }
         setIsRestoringScroll(false)
         isRestoringScrollRef.current = false
         hasInitialisedRef.current = true
+        prevRoomIdRef.current = roomId
       } else {
         // First-time messages: snap to bottom *now* and unhide.
         // This ensures the container is visible immediately after the first fetch
@@ -845,6 +688,7 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
     }
 
     upsertMessages(roomId, [optimisticMessage])
+    snapToBottom()
 
     try {
       const response = await fetch('/api/chat/messages', {
@@ -936,24 +780,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         setRoom(roomId, { messages: filtered })
       }
       
-      // Scroll to bottom after adding message (wait for DOM update)
-      const el = messagesContainerRef.current
-      if (el) {
-        // Use requestAnimationFrame to ensure DOM has updated before scrolling
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const elAfterUpdate = messagesContainerRef.current
-            if (elAfterUpdate) {
-              // Force reflow to ensure scrollHeight is accurate
-              void elAfterUpdate.offsetHeight
-              // Scroll to bottom
-              elAfterUpdate.scrollTop = elAfterUpdate.scrollHeight
-              // Save scroll position
-              setRoom(roomId, { scrollTop: elAfterUpdate.scrollTop })
-            }
-          })
-        })
-      }
+      // Scroll to bottom after API success
+      snapToBottom()
     } catch (err: any) {
       // Remove optimistic message on error
       const currentMessages = room?.messages ?? []
@@ -972,12 +800,17 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   const emitTyping = () => {
     if (!session?.user?.id) return
 
+    const socket = getSocket(session.user.id)
+
     const now = Date.now()
     // Throttle typing events to max once per 3 seconds
     if (now - lastTypingEmitRef.current < 3000) return
 
     lastTypingEmitRef.current = now
-    const socket = initSocket(session.user.id)
+    
+    if (process.env.NODE_ENV !== 'production') {
+    }
+    
     socket.emit('typing:start', {
       roomId,
       userId: session.user.id,
@@ -1016,7 +849,7 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
         typingTimeoutRef.current = null
       }
       if (session?.user?.id) {
-        const socket = initSocket(session.user.id)
+        const socket = getSocket(session.user.id)
         socket.emit('typing:stop', {
           roomId,
           userId: session.user.id,

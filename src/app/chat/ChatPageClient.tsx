@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChatRoom } from '@/components/ChatRoom'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
-import { initSocket } from '@/lib/socket'
+import { getSocket } from '@/lib/socketClient'
 import { useChatStore } from '@/lib/chatStore'
 
 interface Room {
@@ -399,10 +399,11 @@ export default function ChatPageClient({ initialRoomId }: ChatPageClientProps) {
   }, [status])
 
   // Join all user rooms via socket and listen for messages
+  // This is the ONLY place that joins/leaves rooms to avoid duplicate joins
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user?.id || myRooms.length === 0) return
 
-    const socket = initSocket(session.user.id)
+    const socket = getSocket(session.user.id)
 
     // Join all rooms the user is a member of
     const joinAllRooms = () => {
