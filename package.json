@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx server/index.ts",
+    "dev:next-only": "next dev",
     "dev:server": "tsx server/index.ts",
     "build": "next build",
     "start": "tsx server/index.ts",

@@ -21,11 +21,13 @@
 
 ### Option 2: Render (Native Node Service)
 
+**Important:** Render uses the custom server (`server/index.ts`) which includes both Next.js and Socket.io. This is configured via `npm start` which runs `tsx server/index.ts`.
+
 1. **Create PostgreSQL database** on Render
 2. **Create Web Service:**
    - Environment: **Node** (NOT Docker)
-   - Build Command: `npm install && npm run build`
-   - Start Command: `npm start`
+   - Build Command: `pnpm install && pnpm build` (or `npm install && npm run build`)
+   - Start Command: `pnpm start` (or `npm start`) - This runs the custom server with Socket.io
 3. **Add environment variables:**
    ```
    DATABASE_URL=<Internal Database URL>

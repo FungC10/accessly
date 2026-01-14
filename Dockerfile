@@ -50,11 +50,18 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/src/data ./src/data
 COPY --from=builder /app/src/prisma ./src/prisma
 COPY --from=builder /app/scripts ./scripts
+# CRITICAL: Copy server directory for custom server with Socket.io
+COPY --from=builder /app/server ./server
+# Copy source lib files needed by server
+COPY --from=builder /app/src/lib ./src/lib
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+# Copy tsconfig and other config files needed for TypeScript
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/next.config.js ./next.config.js
 
-# Install dev dependencies needed for seeding (tsx, prisma CLI)
-# These are required for: pnpm db:seed-demo, npx prisma db seed
+# Install dev dependencies needed for seeding and running custom server (tsx, prisma CLI)
+# These are required for: pnpm db:seed-demo, npx prisma db seed, and tsx server/index.ts
 RUN corepack enable && corepack prepare pnpm@8.15.1 --activate && \
     pnpm install --frozen-lockfile --prod=false --ignore-scripts && \
     chown -R nextjs:nodejs /app
@@ -63,4 +70,6 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Run custom server with Socket.io (same as pnpm start)
+# Uses tsx to run TypeScript directly in production
+CMD ["pnpm", "start"]
